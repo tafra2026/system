@@ -10,6 +10,9 @@ import { ScheduleList } from '@/components/schedule-list'
 import { visitStatusTone } from '@/components/status-tones'
 import { Badge } from '@/components/ui'
 import Link from 'next/link'
+import { TripsList } from '@/components/trips-list'
+import { toDriverLegs } from '@/server/services/trip-views'
+import { myTrips } from '@/server/services/trips'
 
 export default async function DashboardPage() {
   const actor = await requireActor()
@@ -20,13 +23,14 @@ export default async function DashboardPage() {
   const summary = can(actor, 'salaries.read') ? await staffSummary(actor) : null
   const mine = actor.role === 'specialist' ? await mySchedule(actor, opDate, opDate) : null
   const todays = can(actor, 'orders.read.all') ? await visitsOnOperationalDate(actor, opDate) : null
+  const driverLegs = actor.role === 'driver' ? await myTrips(actor, opDate, opDate) : null
 
   return (
     <div className="flex flex-col gap-4">
       <div>
         <h1 className="text-2xl font-bold text-ink">{t('dashboard.greeting', { name: actor.displayName })}</h1>
         <p className="text-sm text-muted">
-          {t('dashboard.todayLabel')}: {formatDate(now, locale)} · <span className="ltr-data">{formatTime(now, locale)}</span>
+          {t('dashboard.todayLabel')}: {formatDate(now, locale)} · <bdi>{formatTime(now, locale)}</bdi>
         </p>
       </div>
 
@@ -58,9 +62,9 @@ export default async function DashboardPage() {
           <ScheduleList visits={mine} locale={locale} path="/" />
         </Card>
       )}
-      {actor.role === 'driver' && (
-        <Card title={t('dashboard.tripsTitle')}>
-          <EmptyState body={t('dashboard.tripsEmpty')} />
+      {driverLegs && (
+        <Card title={t('dashboard.tripsTitle')} actions={<ButtonLink href="/my-trips" variant="secondary">{t('schedule.upcoming')}</ButtonLink>}>
+          <TripsList legs={toDriverLegs(driverLegs)} />
         </Card>
       )}
       {todays && (
@@ -72,7 +76,7 @@ export default async function DashboardPage() {
               {todays.map((v) => (
                 <li key={v.visitId}>
                   <Link href={`/orders/${v.orderId}`} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm hover:bg-cream">
-                    <span className="ltr-data font-semibold text-ink">{v.startsAt ? formatTime(v.startsAt, locale) : '—'}</span>
+                    <bdi className="font-semibold text-ink">{v.startsAt ? formatTime(v.startsAt, locale) : '—'}</bdi>
                     <span className="flex-1 text-ink" dir="auto">
                       {v.customerName}
                     </span>

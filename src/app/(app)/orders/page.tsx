@@ -68,7 +68,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
                     <span className="text-muted">
                       {appt ? (
                         <>
-                          {appt.date} · <span className="ltr-data">{appt.time}</span>
+                          {appt.date} · <bdi>{appt.time}</bdi>
                         </>
                       ) : (
                         t('orders.notScheduled')

@@ -7,6 +7,7 @@
 - الخطة والحالة: [`docs/ROADMAP.md`](docs/ROADMAP.md)
 - القرارات: [`docs/DECISIONS.md`](docs/DECISIONS.md)
 - الهوية والألوان: [`docs/DESIGN.md`](docs/DESIGN.md)
+- التكاملات (Google Maps، تابي، تمارا): [`docs/INTEGRATIONS.ar.md`](docs/INTEGRATIONS.ar.md)
 - إرشادات المطوّر/Claude: [`CLAUDE.md`](CLAUDE.md)
 
-> الحالة: المرحلة 1 (الأساس). النظام **ليس جاهزًا للإنتاج** بعد.
+> الحالة: المراحل 1–3 مكتملة للمراجعة. النظام **ليس جاهزًا للإنتاج** بعد (التحصيل والعمولات والرواتب والتكاملات في المراحل التالية).

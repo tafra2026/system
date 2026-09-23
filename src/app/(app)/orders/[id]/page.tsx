@@ -166,7 +166,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                 <p className="mt-1 text-sm text-ink">
                   {appt ? (
                     <>
-                      {appt.date} · <span className="ltr-data">{appt.time}</span> · {t('orders.minutes', { n: v.durationMinutes })}
+                      {appt.date} · <bdi>{appt.time}</bdi> · {t('orders.minutes', { n: v.durationMinutes })}
                       {appt.afterMidnight && <span className="block text-xs text-warning">{t('datetime.afterMidnight', { date: appt.operationalDateLabel })}</span>}
                     </>
                   ) : (

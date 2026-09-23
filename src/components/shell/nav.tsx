@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 export interface NavItem {
   href: string
   label: string
-  icon: 'home' | 'staff' | 'audit' | 'account' | 'customers' | 'orders' | 'catalog' | 'settings' | 'schedule'
+  icon: 'home' | 'staff' | 'audit' | 'account' | 'customers' | 'orders' | 'catalog' | 'settings' | 'schedule' | 'calendar' | 'trips' | 'teams'
 }
 
 const icons: Record<NavItem['icon'], React.ReactNode> = {
@@ -52,6 +52,25 @@ const icons: Record<NavItem['icon'], React.ReactNode> = {
     <>
       <circle cx="12" cy="12" r="3" />
       <path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" />
+    </>
+  ),
+  calendar: (
+    <>
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M3 10h18M8 3v4M16 3v4M7 14h2M11 14h2M15 14h2M7 17h2M11 17h2" />
+    </>
+  ),
+  trips: (
+    <>
+      <path d="M3 13l2-5a2 2 0 0 1 1.9-1.4h10.2A2 2 0 0 1 19 8l2 5v4a1 1 0 0 1-1 1h-1a2 2 0 0 1-4 0H9a2 2 0 0 1-4 0H4a1 1 0 0 1-1-1z" />
+      <path d="M3 13h18" />
+    </>
+  ),
+  teams: (
+    <>
+      <circle cx="8" cy="8" r="3" />
+      <circle cx="16" cy="8" r="3" />
+      <path d="M2 20c.5-3.3 3-5 6-5s5.5 1.7 6 5M12.5 15.4c1-.3 2.1-.4 3.5-.4 3 0 5.5 1.7 6 5" />
     </>
   ),
   schedule: (

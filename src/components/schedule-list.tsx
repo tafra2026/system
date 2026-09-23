@@ -23,7 +23,7 @@ export function ScheduleList({ visits, locale, path }: { visits: Visit[]; locale
           <li key={v.visitId} className="rounded-xl border border-line p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="font-semibold text-ink">
-                {appt.date} · <span className="ltr-data">{appt.time}</span>
+                {appt.date} · <bdi>{appt.time}</bdi>
               </p>
               <Badge tone={visitStatusTone[v.status]}>{t(`visitStatus.${v.status}`)}</Badge>
             </div>

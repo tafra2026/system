@@ -1,0 +1,75 @@
+'use client'
+
+import { useActionState } from 'react'
+import { markStartedAction } from '@/app/(app)/trips/actions'
+import { FormStatus, SubmitButton } from './form'
+import { useI18n } from './i18n-provider'
+import { Badge, EmptyState } from './ui'
+import { formatTime } from '@/i18n/format'
+import type { ActionState } from '@/server/actions'
+
+export interface DriverLeg {
+  legId: string
+  kind: 'dropoff' | 'pickup'
+  departAt: string
+  arriveAt: string
+  startedAt: string | null
+  reference: string
+  customerName: string
+  destination: { district: string; addressLine: string | null; mapUrl: string | null } | null
+  origin: { label: string; mapUrl: string | null }
+  specialists: string[]
+}
+
+function StartButton({ legId }: { legId: string }) {
+  const { t } = useI18n()
+  const [state, action] = useActionState(markStartedAction.bind(null, legId), { ok: false } as ActionState<never>)
+  return (
+    <form action={action}>
+      <FormStatus state={state} />
+      <SubmitButton>{t('trips.startedHeading')}</SubmitButton>
+    </form>
+  )
+}
+
+/** Driver's legs: planned times (estimates), places, who to carry. No prices or phone numbers. */
+export function TripsList({ legs }: { legs: DriverLeg[] }) {
+  const { t, locale } = useI18n()
+  if (legs.length === 0) return <EmptyState body={t('trips.myEmpty')} />
+  return (
+    <ul className="flex flex-col gap-3">
+      {legs.map((l) => (
+        <li key={l.legId} className="rounded-xl border border-line p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Badge tone={l.kind === 'dropoff' ? 'brand' : 'warning'}>{l.kind === 'dropoff' ? t('trips.dropoff') : t('trips.pickup')}</Badge>
+            <span className="ltr-data text-xs text-muted">{l.reference}</span>
+          </div>
+          <p className="mt-1 text-sm text-ink">
+            {t('trips.plannedDepart')}: <strong><bdi>{formatTime(new Date(l.departAt), locale)}</bdi></strong> · {t('trips.expectedArrival')}: <strong><bdi>{formatTime(new Date(l.arriveAt), locale)}</bdi></strong>
+          </p>
+          <p className="text-sm text-muted">
+            {t('trips.origin')}: <span dir="auto">{l.origin.label}</span>
+          </p>
+          {l.destination && (
+            <p className="text-sm text-ink" dir="auto">
+              {t('trips.destination')}: {l.customerName} — {l.destination.district}
+              {l.destination.addressLine ? `، ${l.destination.addressLine}` : ''}
+            </p>
+          )}
+          <p className="text-sm text-muted">
+            {t('trips.specialistsToCarry')}: {l.specialists.join('، ')}
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            {l.destination?.mapUrl && (
+              <a href={l.destination.mapUrl} target="_blank" rel="noreferrer" className="text-sm font-medium text-brand-deep underline">
+                {t('trips.openMap')}
+              </a>
+            )}
+            {l.kind === 'dropoff' && (l.startedAt ? <span className="text-sm text-success">{t('trips.startedAt', { time: formatTime(new Date(l.startedAt), locale) })}</span> : <StartButton legId={l.legId} />)}
+          </div>
+        </li>
+      ))}
+      <li className="text-xs text-muted">{t('trips.estimateNote')}</li>
+    </ul>
+  )
+}
