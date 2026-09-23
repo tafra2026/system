@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 
-/** Registers the service worker (installability + offline page). Push comes in phase 5. */
+/** Registers the service worker (installability, offline page, Web Push). */
 export function ServiceWorkerRegister() {
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return

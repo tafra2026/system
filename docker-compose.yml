@@ -29,6 +29,20 @@ services:
       db:
         condition: service_healthy
 
+  # Background worker: 3-hour reminders and other notifications, Web Push delivery.
+  worker:
+    build: .
+    restart: unless-stopped
+    command: ['npm', 'run', '-s', 'worker']
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://pamper:${POSTGRES_PASSWORD}@db:5432/pamper
+      APP_ENV: production
+      NODE_ENV: production
+    depends_on:
+      app:
+        condition: service_started
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped

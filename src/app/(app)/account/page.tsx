@@ -4,6 +4,8 @@ import { requireActor } from '@/server/auth/current'
 import { LanguageForm, PasswordForm } from './account-forms'
 import { getEmployeeTimeOff } from '@/server/services/time-off'
 import { formatCalendarDate } from '@/i18n/format'
+import { PushSettings } from '@/components/push-settings'
+import { pushPublicKey } from '@/server/push'
 
 export default async function AccountPage() {
   const actor = await requireActor()
@@ -24,7 +26,7 @@ export default async function AccountPage() {
       <Card title={t('timeoff.mine')}>
         {off.weekly.length > 0 && (
           <p className="text-sm text-ink">
-            {t('timeoff.weekly')}: {off.weekly.map((d) => t(`settings.weekdays.${String(d) as '0'}`)).join('، ')}
+            {t('timeoff.weekly')}: {off.weekly.map((d) => t(`settings.weekdays.${String(d) as '0'}`)).join(actor.locale === 'ar' ? '، ' : ', ')}
           </p>
         )}
         {off.dates.length === 0 ? (
@@ -36,6 +38,9 @@ export default async function AccountPage() {
             ))}
           </ul>
         )}
+      </Card>
+      <Card title={t('notifications.push.title')} subtitle={t('notifications.push.subtitle')}>
+        <PushSettings publicKey={pushPublicKey()} />
       </Card>
       <Card title={t('account.languageTitle')}>
         <LanguageForm />

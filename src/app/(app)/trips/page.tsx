@@ -65,7 +65,7 @@ export default async function TripsPage({ searchParams }: { searchParams: Promis
                   <bdi>{appt.time}</bdi> – <bdi>{formatTime(v.endsAt, actor.locale)}</bdi> · <span dir="auto">{v.customerName}</span>
                 </span>
               }
-              subtitle={`${v.reference} · ${v.address?.district ?? ''} · ${v.specialists.map((s) => s.name).join('، ')}`}
+              subtitle={`${v.reference} · ${v.address?.district ?? ''} · ${v.specialists.map((s) => s.name).join(t('common.listSeparator'))}`}
               actions={
                 <Link href={`/orders/${v.orderId}`} className="text-sm font-medium text-brand-deep underline">
                   {t('common.details')}

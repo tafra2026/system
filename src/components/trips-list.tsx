@@ -57,11 +57,11 @@ export function TripsList({ legs }: { legs: DriverLeg[] }) {
           {l.destination && (
             <p className="text-sm text-ink" dir="auto">
               {t('trips.destination')}: {l.customerName} — {l.destination.district}
-              {l.destination.addressLine ? `، ${l.destination.addressLine}` : ''}
+              {l.destination.addressLine ? `${t('common.listSeparator')}${l.destination.addressLine}` : ''}
             </p>
           )}
           <p className="text-sm text-muted">
-            {t('trips.specialistsToCarry')}: {l.specialists.join('، ')}
+            {t('trips.specialistsToCarry')}: {l.specialists.join(t('common.listSeparator'))}
           </p>
           {l.destination?.photoUrl && <BuildingPhoto url={l.destination.photoUrl} />}
           <div className="mt-2 flex flex-wrap items-center gap-3">

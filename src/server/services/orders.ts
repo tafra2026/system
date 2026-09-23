@@ -33,6 +33,7 @@ import { syncLegsForVisit } from './trip-sync'
 import { employeesOffOn, offCalendar } from './time-off'
 import { orderBalance, syncCommissions } from './commissions'
 import { syncMessageTasks } from './messages'
+import { NOBODY, notifyVisitChanges, visitPeople } from './notifications'
 import { parseWith, pgErrorCode } from './validation'
 
 // ─────────────────────────────── Input schema ───────────────────────────────
@@ -523,6 +524,10 @@ export async function saveOrder(actor: Actor, orderId: string | null, rawInput: 
       })
       // Booking confirmation + a reminder three hours before each scheduled visit (spec §13).
       if (opts.confirm) await syncMessageTasks(tx, order.id)
+      if (opts.confirm) {
+        // Tell each reserved specialist about her new booking (in her own language).
+        for (const v of await tx.select({ id: visits.id }).from(visits).where(eq(visits.orderId, order.id))) await notifyVisitChanges(tx, v.id, NOBODY, actor.userId)
+      }
       return { id: order.id, reference: order.reference, status: order.status }
     })
   } catch (err) {
@@ -571,6 +576,7 @@ export async function rescheduleVisit(actor: Actor, visitId: string, raw: unknow
       const { v, o } = await lockVisit(tx, visitId)
       if (o.status === 'draft') throw new ValidationError('order_is_draft')
       if (v.status === 'completed') throw new ValidationError('visit_completed')
+      const peopleBefore = await visitPeople(tx, visitId)
       const rows = await tx.select({ id: employees.id, role: employees.role, status: employees.status }).from(employees).where(inArray(employees.id, specialistIds))
       if (rows.length !== specialistIds.length || rows.some((r) => r.role !== 'specialist' || r.status !== 'active')) fieldError('specialistIds', 'specialist_invalid')
       if ((await employeesOffOn(tx, specialistIds, operationalDateOf(startsAt))).size > 0) fieldError('specialistIds', 'specialist_day_off')
@@ -598,6 +604,7 @@ export async function rescheduleVisit(actor: Actor, visitId: string, raw: unknow
       await refreshOrderStatus(tx, o.id)
       // The old reminder is cancelled and a new one prepared for the new time.
       await syncMessageTasks(tx, o.id)
+      await notifyVisitChanges(tx, visitId, peopleBefore, actor.userId)
       await writeAudit(tx, {
         actorUserId: actor.userId,
         action: v.startsAt ? 'visit.reschedule' : 'visit.schedule',

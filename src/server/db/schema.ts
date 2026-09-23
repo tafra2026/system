@@ -922,6 +922,8 @@ export const messageTasks = pgTable(
     sentConfirmedByUserId: uuid('sent_confirmed_by_user_id').references(() => users.id, { onDelete: 'set null' }),
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
     cancelReason: text('cancel_reason'),
+    /** When the "message due" notification was created (by the background worker). */
+    notifiedAt: timestamp('notified_at', { withTimezone: true }),
     ...timestamps,
   },
   (t) => [
@@ -931,6 +933,71 @@ export const messageTasks = pgTable(
     index('message_tasks_assignee_idx').on(t.assigneeEmployeeId),
     check('message_tasks_visit_required', sql`${t.kind} IN ('booking_confirmation', 'review_request') OR ${t.visitId} IS NOT NULL`),
   ],
+)
+
+/**
+ * In-app notification centre (spec §14) — also the source for Web Push. Only a kind and
+ * non-sensitive parameters (order reference, time) are stored; the text is rendered in the
+ * recipient's CURRENT language when shown or pushed. No customer names, phones or addresses,
+ * so nothing sensitive can appear on a lock screen.
+ */
+export const notificationKind = pgEnum('notification_kind', [
+  'visit_assigned',
+  'visit_unassigned',
+  'visit_rescheduled',
+  'trip_assigned',
+  'trip_unassigned',
+  'message_due',
+  'transfer_pending',
+  'payment_confirmed',
+  'payment_rejected',
+])
+export const pushState = pgEnum('push_state', ['pending', 'sent', 'no_device', 'disabled', 'failed', 'expired'])
+
+export const notifications = pgTable(
+  'notifications',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    kind: notificationKind('kind').notNull(),
+    /** e.g. { reference, at } — never customer personal data. */
+    params: jsonb('params').notNull().default({}),
+    /** In-app path opened by the notification. */
+    link: text('link').notNull(),
+    /** Prevents duplicates from retries (unique per user). */
+    dedupeKey: text('dedupe_key'),
+    readAt: timestamp('read_at', { withTimezone: true }),
+    pushState: pushState('push_state').notNull().default('pending'),
+    pushedAt: timestamp('pushed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('notifications_user_created_idx').on(t.userId, t.createdAt),
+    index('notifications_push_pending_idx').on(t.pushState, t.createdAt),
+    uniqueIndex('notifications_user_dedupe_uq').on(t.userId, t.dedupeKey),
+  ],
+)
+
+/** Browser push subscriptions, one per device/browser that allowed notifications. */
+export const pushSubscriptions = pgTable(
+  'push_subscriptions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    endpoint: text('endpoint').notNull(),
+    p256dh: text('p256dh').notNull(),
+    auth: text('auth').notNull(),
+    /** Short device label for the account page (e.g. "iPhone", "Android"). */
+    deviceLabel: text('device_label'),
+    failedCount: integer('failed_count').notNull().default(0),
+    lastSuccessAt: timestamp('last_success_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('push_subscriptions_endpoint_uq').on(t.endpoint), index('push_subscriptions_user_idx').on(t.userId)],
 )
 
 export type Employee = typeof employees.$inferSelect
@@ -946,3 +1013,5 @@ export type Order = typeof orders.$inferSelect
 export type OrderLine = typeof orderLines.$inferSelect
 export type Visit = typeof visits.$inferSelect
 export type MessageTask = typeof messageTasks.$inferSelect
+export type Notification = typeof notifications.$inferSelect
+export type NotificationKind = (typeof notificationKind.enumValues)[number]

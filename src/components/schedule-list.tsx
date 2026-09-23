@@ -38,7 +38,7 @@ export function ScheduleList({ visits, locale, path }: { visits: Visit[]; locale
             </p>
             <p className="mt-1 text-sm text-ink" dir="auto">
               {v.customerName}
-              {v.address && ` — ${v.address.district}${v.address.addressLine ? `، ${v.address.addressLine}` : ''}`}
+              {v.address && ` — ${v.address.district}${v.address.addressLine ? `${t('common.listSeparator')}${v.address.addressLine}` : ''}`}
             </p>
             {v.address?.buildingDetails && (
               <p className="text-sm text-muted" dir="auto">
@@ -67,7 +67,7 @@ export function ScheduleList({ visits, locale, path }: { visits: Visit[]; locale
                   <CopyButton
                     label={t('schedule.copyLocation')}
                     value={[
-                      [v.address.district, v.address.addressLine, v.address.buildingDetails].filter(Boolean).join('، '),
+                      [v.address.district, v.address.addressLine, v.address.buildingDetails].filter(Boolean).join(t('common.listSeparator')),
                       v.address.latitude != null && v.address.longitude != null ? mapsLink(v.address.latitude, v.address.longitude) : null,
                     ]
                       .filter(Boolean)
@@ -79,7 +79,7 @@ export function ScheduleList({ visits, locale, path }: { visits: Visit[]; locale
             )}
             {v.team.length > 0 && (
               <p className="mt-1 text-sm text-muted">
-                {t('schedule.team')}: {v.team.join('، ')}
+                {t('schedule.team')}: {v.team.join(t('common.listSeparator'))}
               </p>
             )}
             <div className="mt-2">

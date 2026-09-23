@@ -14,6 +14,7 @@ import { getSetting } from './settings'
 import { teamsOn } from './teams'
 import { syncLegsForVisit } from './trip-sync'
 import { syncMessageTasks } from './messages'
+import { notifyVisitChanges, visitPeople } from './notifications'
 import { employeesOffOn } from './time-off'
 import { parseWith, pgConstraint, pgErrorCode } from './validation'
 
@@ -191,6 +192,7 @@ export async function saveLeg(actor: Actor, visitId: string, raw: unknown) {
 
   try {
     await db.transaction(async (tx) => {
+      const peopleBefore = await visitPeople(tx, visitId)
       const values = {
         driverEmployeeId: driver.id,
         originVisitId: origin.originVisitId,
@@ -208,6 +210,7 @@ export async function saveLeg(actor: Actor, visitId: string, raw: unknown) {
         .onConflictDoUpdate({ target: [tripLegs.visitId, tripLegs.kind], set: { ...values, startedAt: null } })
       await syncLegsForVisit(tx, visitId)
       await syncMessageTasks(tx, o.id)
+      await notifyVisitChanges(tx, visitId, peopleBefore, actor.userId)
       await writeAudit(tx, {
         actorUserId: actor.userId,
         action: 'trip.leg_saved',
@@ -227,12 +230,14 @@ export async function removeLeg(actor: Actor, visitId: string, kind: LegKind) {
   await getDb().transaction(async (tx) => {
     const [leg] = await tx.select().from(tripLegs).where(and(eq(tripLegs.visitId, visitId), eq(tripLegs.kind, kind)))
     if (!leg) return
+    const peopleBefore = await visitPeople(tx, visitId)
     await tx.delete(tripLegs).where(eq(tripLegs.id, leg.id))
     // Specialists go back to being reserved from the visit start.
     const [v] = await tx.select().from(visits).where(eq(visits.id, visitId))
     if (v?.startsAt) await tx.update(visitSpecialists).set({ startsAt: v.startsAt }).where(and(eq(visitSpecialists.visitId, visitId), eq(visitSpecialists.blocking, true)))
     await syncLegsForVisit(tx, visitId)
     if (v) await syncMessageTasks(tx, v.orderId)
+    await notifyVisitChanges(tx, visitId, peopleBefore, actor.userId)
     await writeAudit(tx, { actorUserId: actor.userId, action: 'trip.leg_removed', entityType: 'visit', entityId: visitId, after: { kind } })
   })
 }

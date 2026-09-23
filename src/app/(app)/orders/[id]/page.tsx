@@ -84,7 +84,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
               <p>
                 {address.label ? `${address.label} — ` : ''}
                 {address.district}
-                {address.addressLine ? `، ${address.addressLine}` : ''}
+                {address.addressLine ? `${t('common.listSeparator')}${address.addressLine}` : ''}
               </p>
               {address.buildingDetails && <p className="text-muted">{address.buildingDetails}</p>}
               {address.accessInstructions && <p className="text-muted">{address.accessInstructions}</p>}
@@ -191,7 +191,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                 </p>
                 {v.specialists.length > 0 && (
                   <p className="text-sm text-muted">
-                    {t('orders.specialists')}: {v.specialists.map((s) => s.name).join('، ')}
+                    {t('orders.specialists')}: {v.specialists.map((s) => s.name).join(t('common.listSeparator'))}
                   </p>
                 )}
                 {v.pendingReason && (

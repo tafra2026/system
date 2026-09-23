@@ -339,7 +339,7 @@ export function BookingWizard({ ctx, initial }: { ctx: WizardContext; initial: W
                   <span className="text-sm text-ink" dir="auto">
                     {a.label ? <strong>{a.label} — </strong> : null}
                     {a.district}
-                    {a.addressLine ? `، ${a.addressLine}` : ''}
+                    {a.addressLine ? `${t('common.listSeparator')}${a.addressLine}` : ''}
                   </span>
                   {a.latitude == null && <span className="text-xs text-muted">({t('customers.noLocation')})</span>}
                 </label>
@@ -589,7 +589,7 @@ export function BookingWizard({ ctx, initial }: { ctx: WizardContext; initial: W
                 <li key={i}>
                   <span className="text-muted">{t('orders.visit', { n: i + 1 })}: </span>
                   <span className="ltr-data">{v.date && v.time ? `${v.date} ${v.time}` : t('orders.notScheduled')}</span>
-                  {v.specialistIds.length > 0 && <span> · {v.specialistIds.map(specialistName).join('، ')}</span>}
+                  {v.specialistIds.length > 0 && <span> · {v.specialistIds.map(specialistName).join(t('common.listSeparator'))}</span>}
                 </li>
               ))}
             </ul>

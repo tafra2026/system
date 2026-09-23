@@ -2,7 +2,8 @@
  * Pamper Me service worker.
  * - Caches ONLY public static assets (build files, icons, fonts) and the offline page.
  * - Never caches pages, API responses, salaries or customer data (spec §14).
- * - Web Push handlers are added in phase 5.
+ * - Shows Web Push notifications (text is prepared by the server in the employee's language and
+ *   never contains customer names, phones or addresses) and opens the right page on tap.
  */
 const VERSION = 'pm-static-v1'
 const OFFLINE_URL = '/offline'
@@ -56,4 +57,40 @@ self.addEventListener('fetch', (event) => {
     )
   }
   // Everything else (API, data) goes straight to the network and is never cached.
+})
+
+self.addEventListener('push', (event) => {
+  let data = {}
+  try {
+    data = event.data ? event.data.json() : {}
+  } catch {
+    data = {}
+  }
+  const title = data.title || 'Pamper Me'
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: data.body || '',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      tag: data.tag,
+      lang: data.lang,
+      dir: data.dir || 'auto',
+      data: { url: typeof data.url === 'string' && data.url.startsWith('/') ? data.url : '/notifications' },
+    }),
+  )
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const target = new URL(event.notification.data?.url || '/notifications', self.location.origin).href
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
+      for (const w of windows) {
+        if (w.url.startsWith(self.location.origin) && 'focus' in w) {
+          return w.focus().then((c) => (c && 'navigate' in c ? c.navigate(target) : undefined))
+        }
+      }
+      return self.clients.openWindow(target)
+    }),
+  )
 })

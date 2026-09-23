@@ -4,10 +4,14 @@ import { createTranslator } from '@/i18n'
 import { can } from '@/server/authz/actor'
 import { requireActor } from '@/server/auth/current'
 import { logoutAction } from './actions'
+import Link from 'next/link'
+import { LogoutButton } from '@/components/logout-button'
+import { unreadNotificationCount } from '@/server/services/notifications'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const actor = await requireActor()
   const t = createTranslator(actor.locale)
+  const unread = await unreadNotificationCount(actor)
   // Menu entries appear only for sections this role may use; the server re-checks every request.
   const entry = (show: boolean, href: string, label: string, icon: NavItem['icon']): NavItem[] => (show ? [{ href, label, icon }] : [])
   const items: NavItem[] = [
@@ -40,16 +44,27 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <header className="bg-brand pt-[env(safe-area-inset-top)]">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
           <BrandLogo label={t('app.fullName')} height={36} />
+          <div className="flex items-center gap-2">
+          <Link
+            href="/notifications"
+            aria-label={unread > 0 ? t('notifications.bellUnread', { count: unread }) : t('notifications.title')}
+            className="relative inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-cream text-brand-deep hover:bg-brand-soft"
+          >
+            <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z" />
+              <path d="M10 20a2 2 0 0 0 4 0" />
+            </svg>
+            {unread > 0 && (
+              <span className="absolute -top-1 -end-1 min-w-5 rounded-full bg-danger px-1 text-center text-xs font-bold leading-5 text-white">{unread > 99 ? '99+' : unread}</span>
+            )}
+          </Link>
           <div className="flex items-center gap-1 rounded-2xl bg-cream py-1 ps-3 pe-1">
             <div className="text-end leading-tight">
               <p className="max-w-24 truncate text-sm font-semibold text-ink sm:max-w-none">{actor.displayName}</p>
               <p className="text-xs text-muted">{t(`roles.${actor.role}`)}</p>
             </div>
-            <form action={logoutAction}>
-              <button type="submit" className="min-h-11 whitespace-nowrap rounded-xl px-2.5 text-sm font-medium text-brand-deep hover:bg-brand-soft">
-                {t('nav.logout')}
-              </button>
-            </form>
+            <LogoutButton action={logoutAction} />
+          </div>
           </div>
         </div>
       </header>

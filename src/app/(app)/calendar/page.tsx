@@ -42,7 +42,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
       </span>
       {!compact && (
         <span className="block text-xs text-muted">
-          {v.specialists.map((s) => s.name).join('، ')}
+          {v.specialists.map((s) => s.name).join(t('common.listSeparator'))}
           {v.legs.map((l) => (
             <span key={l.kind}>
               {' · '}

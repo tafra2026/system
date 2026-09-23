@@ -24,7 +24,7 @@ src/server/     Server-only: db (schema, client), auth (sessions, passwords, inv
                 services (business operations: validate → authorize → transaction → audit).
 src/app/        Routes. (auth) = public pages, (app) = signed-in pages, api/ = JSON route handlers.
 src/components/ UI components (logical CSS props only: ms/me/ps/pe/start/end — never left/right).
-scripts/        migrate, seed, create-invite, icons.
+scripts/        migrate, seed, create-invite, create-account, worker (reminders + Web Push), push-keys, icons.
 tests/          unit/ (pure) and integration/ (real Postgres test DB).
 ```
 
@@ -78,4 +78,6 @@ npm run db:migrate     # apply migrations to DATABASE_URL
 npm run db:seed        # seed starting employees (idempotent; no login accounts are activated)
 npm run owner:invite   # print a one-time account-setup link for an employee (server access required)
 npm run account:create # create an account (or reset a password) with a hidden password prompt — first owner account
+npm run worker         # background worker: due WhatsApp reminders + Web Push delivery (every 15 s)
+npm run push:keys      # generate VAPID keys once per installation (put them in the server .env)
 ```

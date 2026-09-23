@@ -7,6 +7,7 @@ import { writeAudit } from '../audit'
 import { getDb, type Executor } from '../db'
 import { cashHandovers, customers, employees, orders, payments, visits, visitSpecialists } from '../db/schema'
 import { orderBalance, syncCommissions } from './commissions'
+import { notifyPaymentDecision, notifyTransferPending } from './notifications'
 import { NotFoundError, ValidationError } from './errors'
 import { parseWith, pgErrorCode } from './validation'
 
@@ -108,6 +109,7 @@ export async function recordPayment(actor: Actor, orderId: string, raw: unknown)
         after: { payment: p!.id, method: p!.method, amountHalalas: p!.amountHalalas, status: p!.status, isDeposit: p!.isDeposit },
       })
       if (confirmedNow) await syncCommissions(tx, orderId)
+      else await notifyTransferPending(tx, o.reference, p!.amountHalalas, actor.userId)
       return p!
     })
   } catch (err) {
@@ -134,6 +136,7 @@ export async function decideTransfer(actor: Actor, paymentId: string, approve: b
       .where(eq(payments.id, paymentId))
     await writeAudit(tx, { actorUserId: actor.userId, action: approve ? 'payment.approve' : 'payment.reject', entityType: 'order', entityId: p.orderId, after: { payment: p.id, amountHalalas: p.amountHalalas }, reason })
     if (approve) await syncCommissions(tx, p.orderId)
+    await notifyPaymentDecision(tx, p, approve, actor.userId)
   })
 }
 

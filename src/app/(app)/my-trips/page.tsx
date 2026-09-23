@@ -29,7 +29,7 @@ export default async function MyTripsPage() {
       <Card title={t('trips.team')}>
         {team ? (
           <p className="text-sm text-ink">
-            <strong>{team.name}</strong>: {team.members.map((m) => `${m.name} (${t(`roles.${m.role}`)})`).join('، ')}
+            <strong>{team.name}</strong>: {team.members.map((m) => `${m.name} (${t(`roles.${m.role}`)})`).join(actor.locale === 'ar' ? '، ' : ', ')}
           </p>
         ) : (
           <p className="text-sm text-muted">{t('trips.noTeam')}</p>
