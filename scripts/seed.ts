@@ -5,14 +5,18 @@ import { writeAudit } from '../src/server/audit'
 import { closeDb, getDb } from '../src/server/db'
 import { employees, salaryRecords } from '../src/server/db/schema'
 import { INITIAL_STAFF } from '../src/server/seed-data'
+import { seedCatalog } from '../src/server/seed-catalog'
 
-/** Idempotent: does nothing if any employee already exists. Creates NO login accounts. */
+/** Idempotent: seeds the catalog and staff only when empty. Creates NO login accounts. */
 async function main() {
   const db = getDb()
+  const catalogCreated = await db.transaction((tx) => seedCatalog(tx))
+  console.log(catalogCreated ? 'Seeded the service & package catalog.' : 'Catalog already exists — unchanged.')
+
   const [row] = await db.select({ value: count() }).from(employees)
   const value = row?.value ?? 0
   if (value > 0) {
-    console.log(`Skipped: ${value} employees already exist.`)
+    console.log(`Staff skipped: ${value} employees already exist.`)
     return
   }
   const effectiveFrom = process.argv.find((a) => a.startsWith('--salary-from='))?.split('=')[1] ?? riyadhMonthStart()
