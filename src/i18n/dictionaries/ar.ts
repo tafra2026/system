@@ -218,6 +218,9 @@ const ar = {
       'trip.leg_saved': 'تخطيط مشوار',
       'trip.leg_removed': 'حذف مشوار',
       'trip.leg_started': 'بدء التوجه للعميلة',
+      'timeoff.weekly': 'تغيير الإجازة الأسبوعية',
+      'timeoff.add': 'إضافة يوم إجازة',
+      'timeoff.cancel': 'إلغاء يوم إجازة',
       'system.seed': 'تهيئة البيانات الأولية',
     },
   },
@@ -428,7 +431,7 @@ const ar = {
   },
   settings: {
     startPoint: 'نقطة انطلاق السائقين',
-    startPointHint: 'اسم المكان والموقع (رابط Google Maps الكامل أو إحداثيات). لم تُحدد مسبقًا.',
+    startPointHint: 'مثال: سكن الأخصائيات. اسم المكان والموقع (رابط Google Maps الكامل أو إحداثيات).',
     startPointLabel: 'اسم المكان',
     startPointLocation: 'الموقع',
     notSet: 'غير محددة',
@@ -452,6 +455,9 @@ const ar = {
     off: 'غير مفعّل',
   },
   schedule: {
+    directions: 'الاتجاهات في خرائط Google',
+    copyLocation: 'نسخ الموقع',
+    copyHint: 'يمكن لصقه في أوبر أو إن درايف عند الذهاب بدون سائق.',
     title: 'جدولي',
     today: 'يوم التشغيل الحالي',
     upcoming: 'القادمة',
@@ -475,6 +481,8 @@ const ar = {
     drivers: 'السائقون',
   },
   trips: {
+    roster: 'من يعمل اليوم',
+    working: 'يعمل',
     title: 'المشاوير',
     subtitle: 'توصيل واستلام الأخصائيات ليوم التشغيل',
     noVisits: 'لا توجد زيارات مجدولة في هذا اليوم.',
@@ -525,6 +533,19 @@ const ar = {
     from: 'يسري من',
     move: 'حفظ',
     since: 'منذ {date}',
+  },
+  timeoff: {
+    title: 'أيام الإجازة',
+    hint: 'إجازة الموظف تمنع حجزه في ذلك اليوم. لا يمكن إضافة إجازة ليوم لديه فيه حجوزات؛ تُنقل الحجوزات أولًا.',
+    weekly: 'إجازة أسبوعية ثابتة',
+    addDate: 'إضافة يوم إجازة',
+    date: 'التاريخ (يوم التشغيل)',
+    note: 'ملاحظة',
+    upcoming: 'أيام الإجازة القادمة',
+    none: 'لا توجد أيام إجازة محددة.',
+    cancel: 'إلغاء الإجازة',
+    mine: 'إجازاتي',
+    offBadge: 'إجازة',
   },
   datetime: {
     afterMidnight: 'بعد منتصف الليل — ضمن يوم تشغيل {date}',
@@ -597,6 +618,10 @@ const ar = {
     team_backdated: 'لا يمكن تغيير الفريق بأثر رجعي.',
     team_change_conflict: 'يوجد تغيير آخر لنفس الموظف في هذا التاريخ أو بعده.',
     team_role_invalid: 'الفرق للسائقين والأخصائيات فقط.',
+    specialist_day_off: 'إحدى الأخصائيات في إجازة في هذا اليوم.',
+    driver_day_off: 'السائق في إجازة في هذا اليوم.',
+    employee_has_bookings: 'لدى الموظف حجوزات في: {dates}. يُرجى نقلها أولًا.',
+    day_off_past: 'لا يمكن إضافة إجازة ليوم مضى.',
   },
 }
 

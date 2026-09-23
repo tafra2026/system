@@ -43,6 +43,13 @@
       "when": 1790188951437,
       "tag": "0005_trip_guards",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790191138363,
+      "tag": "0006_employee_days_off",
+      "breakpoints": true
     }
   ]
 }

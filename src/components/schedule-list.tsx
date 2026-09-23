@@ -1,4 +1,5 @@
-import { mapsLink } from '@/domain/order'
+import { directionsLink, mapsLink } from '@/domain/order'
+import { CopyButton } from './copy-button'
 import { createTranslator } from '@/i18n'
 import { describeAppointment } from '@/i18n/format'
 import type { Locale } from '@/i18n/types'
@@ -45,10 +46,31 @@ export function ScheduleList({ visits, locale, path }: { visits: Visit[]; locale
                 {t('schedule.access')}: {v.address.accessInstructions}
               </p>
             )}
-            {v.address?.latitude != null && v.address.longitude != null && (
-              <a href={mapsLink(v.address.latitude, v.address.longitude)} target="_blank" rel="noreferrer" className="text-sm font-medium text-brand-deep underline">
-                {t('customers.openMap')}
-              </a>
+            {v.address && (
+              <div className="mt-2 flex flex-col gap-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  {v.address.latitude != null && v.address.longitude != null && (
+                    <>
+                      <a href={directionsLink(v.address.latitude, v.address.longitude)} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center rounded-xl bg-brand-deep px-3 text-sm font-semibold text-white">
+                        {t('schedule.directions')}
+                      </a>
+                      <a href={mapsLink(v.address.latitude, v.address.longitude)} target="_blank" rel="noreferrer" className="text-sm font-medium text-brand-deep underline">
+                        {t('customers.openMap')}
+                      </a>
+                    </>
+                  )}
+                  <CopyButton
+                    label={t('schedule.copyLocation')}
+                    value={[
+                      [v.address.district, v.address.addressLine, v.address.buildingDetails].filter(Boolean).join('، '),
+                      v.address.latitude != null && v.address.longitude != null ? mapsLink(v.address.latitude, v.address.longitude) : null,
+                    ]
+                      .filter(Boolean)
+                      .join('\n')}
+                  />
+                </div>
+                <p className="text-xs text-muted">{t('schedule.copyHint')}</p>
+              </div>
             )}
             {v.team.length > 0 && (
               <p className="mt-1 text-sm text-muted">

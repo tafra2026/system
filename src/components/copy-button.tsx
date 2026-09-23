@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { buttonStyles } from './ui'
 import { useI18n } from './i18n-provider'
 
-export function CopyButton({ value }: { value: string }) {
+export function CopyButton({ value, label }: { value: string; label?: string }) {
   const { t } = useI18n()
   const [copied, setCopied] = useState(false)
   return (
@@ -21,7 +21,7 @@ export function CopyButton({ value }: { value: string }) {
         }
       }}
     >
-      <span aria-live="polite">{copied ? t('common.copied') : t('common.copy')}</span>
+      <span aria-live="polite">{copied ? t('common.copied') : (label ?? t('common.copy'))}</span>
     </button>
   )
 }

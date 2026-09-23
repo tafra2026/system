@@ -11,6 +11,8 @@ import { pagePermission } from '@/server/auth/current'
 import { NotFoundError } from '@/server/services/errors'
 import { getEmployee, salaryHistory } from '@/server/services/staff'
 import { AccountPanel, DetailsForm, RoleForm, SalaryForm, StatusForm } from './employee-forms'
+import { TimeOffPanel } from './time-off-forms'
+import { getEmployeeTimeOff } from '@/server/services/time-off'
 
 export default async function EmployeePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -30,6 +32,7 @@ export default async function EmployeePage({ params }: { params: Promise<{ id: s
   const today = riyadhToday()
   const current = history?.find((h) => h.effectiveFrom <= today) ?? null
   const name = actor.locale === 'en' && employee.displayNameEn ? employee.displayNameEn : employee.fullName
+  const timeOff = await getEmployeeTimeOff(actor, id)
 
   return (
     <div className="flex flex-col gap-4">
@@ -74,6 +77,10 @@ export default async function EmployeePage({ params }: { params: Promise<{ id: s
           </Card>
         </div>
       </div>
+
+      <Card title={t('timeoff.title')}>
+        <TimeOffPanel employeeId={id} weekly={timeOff.weekly} dates={timeOff.dates} today={today} />
+      </Card>
 
       {history && (
         <Card title={t('staff.salary')} subtitle={`${t('staff.currentSalary')}: ${current ? formatMoney(current.monthlySalaryHalalas, actor.locale) : t('common.notSet')}`}>

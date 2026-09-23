@@ -13,6 +13,7 @@ import { NotFoundError, ValidationError } from './errors'
 import { getSetting } from './settings'
 import { teamsOn } from './teams'
 import { syncLegsForVisit } from './trip-sync'
+import { employeesOffOn } from './time-off'
 import { parseWith, pgConstraint, pgErrorCode } from './validation'
 
 interface Point {
@@ -82,11 +83,18 @@ export async function dayPlan(actor: Actor, date: string) {
   const legs = ids.length ? await db.select().from(tripLegs).where(inArray(tripLegs.visitId, ids)) : []
   const driverRows = await db.select().from(employees).where(and(eq(employees.role, 'driver'), eq(employees.status, 'active'))).orderBy(asc(employees.createdAt))
   const teamOf = await teamsOn(db, [...new Set([...specs.map((s) => s.id), ...driverRows.map((d) => d.id)])], date)
-  const drivers = driverRows.map((d) => ({ id: d.id, name: nameOf(d, actor.locale), teamId: teamOf.get(d.id) ?? null }))
+  const off = await employeesOffOn(db, [...new Set([...specs.map((s) => s.id), ...driverRows.map((d) => d.id)])], date)
+  const drivers = driverRows.filter((d) => !off.has(d.id)).map((d) => ({ id: d.id, name: nameOf(d, actor.locale), teamId: teamOf.get(d.id) ?? null }))
   const driverNames = new Map(driverRows.map((d) => [d.id, nameOf(d, actor.locale)]))
+
+  // Who works today (spec follow-up: not every specialist works every day).
+  const crewRows = await db.select().from(employees).where(and(inArray(employees.role, ['driver', 'specialist']), eq(employees.status, 'active'))).orderBy(asc(employees.createdAt))
+  const crewOff = await employeesOffOn(db, crewRows.map((e) => e.id), date)
+  const roster = crewRows.map((e) => ({ id: e.id, name: nameOf(e, actor.locale), role: e.role, working: !crewOff.has(e.id) }))
 
   return {
     date,
+    roster,
     mapsConfigured: mapsConfigured(),
     startPoint: await getSetting(db, 'start_point'),
     defaultBuffer: await getSetting(db, 'default_buffer_minutes'),
@@ -156,6 +164,7 @@ export async function saveLeg(actor: Actor, visitId: string, raw: unknown) {
   if (v.status !== 'scheduled' || !v.startsAt || !v.operationalDate) throw new ValidationError('visit_not_scheduled')
   const [driver] = await db.select().from(employees).where(eq(employees.id, input.driverId))
   if (!driver || driver.role !== 'driver' || driver.status !== 'active') throw new ValidationError('validation_failed', { driverId: 'driver_invalid' })
+  if ((await employeesOffOn(db, [driver.id], v.operationalDate)).size > 0) throw new ValidationError('validation_failed', { driverId: 'driver_day_off' })
   const origin = await resolveOrigin(db, v.operationalDate, input.originVisitId)
 
   let travelMinutes: number

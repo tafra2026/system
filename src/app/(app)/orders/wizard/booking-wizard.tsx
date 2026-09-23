@@ -44,7 +44,7 @@ export interface WizardContext {
   categories: { code: string; nameAr: string; nameEn: string }[]
   services: WizardService[]
   packages: WizardPackage[]
-  specialists: { id: string; name: string }[]
+  specialists: { id: string; name: string; off?: { weekly: number[]; dates: string[] } }[]
   moderators: { id: string; name: string }[]
   vipOnPackages: boolean
   permissions: { adjust: boolean; free: boolean; custom: boolean }
@@ -81,6 +81,22 @@ export interface WizardInitial {
     )[]
     visits: { date?: string | null; time?: string | null; durationMinutes?: number | null; specialistIds?: string[] }[]
   } | null
+}
+
+/** Operational date of a local date/time: times up to 03:00 belong to the previous day. */
+function operationalDateOfLocal(date: string, time: string): string {
+  if (time && time <= '03:00') {
+    const d = new Date(`${date}T12:00:00Z`)
+    d.setUTCDate(d.getUTCDate() - 1)
+    return d.toISOString().slice(0, 10)
+  }
+  return date
+}
+
+function isOff(s: { off?: { weekly: number[]; dates: string[] } }, date: string, time: string): boolean {
+  if (!s.off || !date) return false
+  const op = operationalDateOfLocal(date, time)
+  return s.off.dates.includes(op) || s.off.weekly.includes(new Date(`${op}T12:00:00Z`).getUTCDay())
 }
 
 const STEPS = ['stepCustomer', 'stepLocation', 'stepServices', 'stepSchedule', 'stepPricing', 'stepReview'] as const
@@ -414,17 +430,20 @@ export function BookingWizard({ ctx, initial }: { ctx: WizardContext; initial: W
                     <div className="mt-2 flex flex-wrap gap-2">
                       {ctx.specialists.map((s) => {
                         const checked = v.specialistIds.includes(s.id)
+                        const off = isOff(s, v.date, v.time)
                         return (
-                          <label key={s.id} className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border px-3 text-sm ${checked ? 'border-brand-deep bg-brand-soft text-brand-deep' : 'border-line text-ink'}`}>
+                          <label key={s.id} className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border px-3 text-sm ${checked ? 'border-brand-deep bg-brand-soft text-brand-deep' : 'border-line text-ink'} ${off && !checked ? 'opacity-50' : ''}`}>
                             <input
                               type="checkbox"
                               className="h-4 w-4 accent-[var(--color-brand-deep)]"
                               checked={checked}
+                              disabled={off && !checked}
                               onChange={() =>
                                 setVisits((vs) => vs.map((x, j) => (j === i ? { ...x, specialistIds: checked ? x.specialistIds.filter((id) => id !== s.id) : [...x.specialistIds, s.id] } : x)))
                               }
                             />
                             <span dir="auto">{s.name}</span>
+                            {off && <Badge tone="warning">{t('timeoff.offBadge')}</Badge>}
                           </label>
                         )
                       })}

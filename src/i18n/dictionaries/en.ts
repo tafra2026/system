@@ -216,6 +216,9 @@ const en: Dictionary = {
       'trip.leg_saved': 'Trip planned',
       'trip.leg_removed': 'Trip removed',
       'trip.leg_started': 'Started heading to customer',
+      'timeoff.weekly': 'Weekly day off changed',
+      'timeoff.add': 'Day off added',
+      'timeoff.cancel': 'Day off cancelled',
       'system.seed': 'Initial data setup',
     },
   },
@@ -426,7 +429,7 @@ const en: Dictionary = {
   },
   settings: {
     startPoint: 'Drivers’ start point',
-    startPointHint: 'Place name and location (full Google Maps link or coordinates). Not preset.',
+    startPointHint: 'e.g. Specialists’ residence. Place name and location (full Google Maps link or coordinates).',
     startPointLabel: 'Place name',
     startPointLocation: 'Location',
     notSet: 'Not set',
@@ -450,6 +453,9 @@ const en: Dictionary = {
     off: 'Off',
   },
   schedule: {
+    directions: 'Directions in Google Maps',
+    copyLocation: 'Copy location',
+    copyHint: 'Paste it into Uber or inDrive when going without the driver.',
     title: 'My schedule',
     today: 'Current operational day',
     upcoming: 'Upcoming',
@@ -473,6 +479,8 @@ const en: Dictionary = {
     drivers: 'Drivers',
   },
   trips: {
+    roster: 'Working today',
+    working: 'Working',
     title: 'Trips',
     subtitle: 'Dropping off and picking up specialists for the operational day',
     noVisits: 'No scheduled visits on this day.',
@@ -523,6 +531,19 @@ const en: Dictionary = {
     from: 'Effective from',
     move: 'Save',
     since: 'since {date}',
+  },
+  timeoff: {
+    title: 'Days off',
+    hint: 'A day off blocks bookings for that employee on that day. A day with existing bookings cannot be added until they are moved.',
+    weekly: 'Fixed weekly day off',
+    addDate: 'Add a day off',
+    date: 'Date (operational day)',
+    note: 'Note',
+    upcoming: 'Upcoming days off',
+    none: 'No specific days off.',
+    cancel: 'Cancel day off',
+    mine: 'My days off',
+    offBadge: 'Day off',
   },
   datetime: {
     afterMidnight: 'After midnight — part of the {date} operational day',
@@ -595,6 +616,10 @@ const en: Dictionary = {
     team_backdated: 'A team cannot be changed retroactively.',
     team_change_conflict: 'Another change for this employee exists on or after this date.',
     team_role_invalid: 'Teams are for drivers and specialists only.',
+    specialist_day_off: 'One of the specialists is off on this day.',
+    driver_day_off: 'The driver is off on this day.',
+    employee_has_bookings: 'The employee has bookings on: {dates}. Move them first.',
+    day_off_past: 'A day off cannot be added for a past day.',
   },
 }
 

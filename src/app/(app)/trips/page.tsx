@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { Forbidden } from '@/components/forbidden'
 import { inputClass } from '@/components/form-styles'
-import { Alert, buttonStyles, Card, EmptyState, PageHeader } from '@/components/ui'
+import { Alert, Badge, buttonStyles, Card, EmptyState, PageHeader } from '@/components/ui'
 import { addDays, operationalDateOf } from '@/domain/operational-day'
 import { createTranslator } from '@/i18n'
 import { describeAppointment, formatCalendarDate, formatTime } from '@/i18n/format'
@@ -32,6 +32,16 @@ export default async function TripsPage({ searchParams }: { searchParams: Promis
         </Link>
       </form>
       <p className="text-sm font-semibold text-brand-deep">{formatCalendarDate(date, actor.locale)}</p>
+      <Card title={t('trips.roster')}>
+        <div className="flex flex-wrap gap-2">
+          {plan.roster.map((r) => (
+            <Badge key={r.id} tone={r.working ? 'success' : 'neutral'}>
+              {r.name} · {t(`roles.${r.role}`)}
+              {!r.working && ` · ${t('timeoff.offBadge')}`}
+            </Badge>
+          ))}
+        </div>
+      </Card>
       <Alert tone="info">{t('trips.estimateNote')}</Alert>
       {!plan.startPoint && <Alert tone="warning">{t('trips.noStartPoint')}</Alert>}
       {plan.visits.length === 0 ? (

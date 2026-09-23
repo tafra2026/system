@@ -73,3 +73,8 @@ export function parseCoordinates(input: string | null | undefined): { latitude: 
 export function mapsLink(latitude: number, longitude: number): string {
   return `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`
 }
+
+/** Google Maps directions to a point (opens the Maps app on phones). */
+export function directionsLink(latitude: number, longitude: number): string {
+  return `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`
+}

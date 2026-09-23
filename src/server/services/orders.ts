@@ -30,6 +30,7 @@ import { NotFoundError, ValidationError } from './errors'
 import { getDaysOff, getSetting } from './settings'
 import { isDayOff } from '@/domain/trips'
 import { syncLegsForVisit } from './trip-sync'
+import { employeesOffOn, offCalendar } from './time-off'
 import { parseWith, pgErrorCode } from './validation'
 
 // ─────────────────────────────── Input schema ───────────────────────────────
@@ -320,7 +321,8 @@ async function planOrder(db: Executor, actor: Actor, input: ParsedInput, opts: {
   }
 
   // Visits.
-  const planned: PlannedVisit[] = input.visits.map((v, i) => {
+  const planned: PlannedVisit[] = []
+  for (const [i, v] of input.visits.entries()) {
     const field = `visits.${i}`
     const specialistIds = [...new Set(v.specialistIds)]
     const visitItemsList = lines.flatMap((l) => l.items.filter((it) => it.visitIndex === i))
@@ -341,6 +343,7 @@ async function planOrder(db: Executor, actor: Actor, input: ParsedInput, opts: {
       startsAt = riyadhLocalToInstant(v.date, v.time)
       if (!isAllowedStartTime(startsAt)) fieldError(field, 'outside_hours')
       if (isDayOff(operationalDateOf(startsAt), daysOff)) fieldError(field, 'day_off')
+      if ((await employeesOffOn(db, specialistIds, operationalDateOf(startsAt))).size > 0) fieldError(field, 'specialist_day_off')
     }
     const declared = lines.filter((l) => l.kind === 'package' && l.sessionVisitIndexes.includes(i)).map((l) => l.durationMinutes)
     const tasks = lines.flatMap((l) => (l.kind === 'package' ? [] : l.items.filter((it) => it.visitIndex === i))).map((it) => ({ specialistId: it.specialistEmployeeId, taskMinutes: it.taskDurationMinutes }))
@@ -359,8 +362,8 @@ async function planOrder(db: Executor, actor: Actor, input: ParsedInput, opts: {
         }
       }
     }
-    return { sequence: i + 1, startsAt, operationalDate: startsAt ? operationalDateOf(startsAt) : null, durationMinutes, specialistIds, notes: v.notes }
-  })
+    planned.push({ sequence: i + 1, startsAt, operationalDate: startsAt ? operationalDateOf(startsAt) : null, durationMinutes, specialistIds, notes: v.notes })
+  }
 
   if (opts.confirm && lines.length === 0) fieldError('lines', 'required')
   const totals = orderTotals(
@@ -566,6 +569,7 @@ export async function rescheduleVisit(actor: Actor, visitId: string, raw: unknow
       if (v.status === 'completed') throw new ValidationError('visit_completed')
       const rows = await tx.select({ id: employees.id, role: employees.role, status: employees.status }).from(employees).where(inArray(employees.id, specialistIds))
       if (rows.length !== specialistIds.length || rows.some((r) => r.role !== 'specialist' || r.status !== 'active')) fieldError('specialistIds', 'specialist_invalid')
+      if ((await employeesOffOn(tx, specialistIds, operationalDateOf(startsAt))).size > 0) fieldError('specialistIds', 'specialist_day_off')
 
       const endsAt = new Date(startsAt.getTime() + input.durationMinutes * 60_000)
       const before = { startsAt: v.startsAt?.toISOString() ?? null, durationMinutes: v.durationMinutes, specialists: (await tx.select({ id: visitSpecialists.employeeId }).from(visitSpecialists).where(eq(visitSpecialists.visitId, visitId))).map((r) => r.id) }
@@ -969,7 +973,14 @@ export async function bookingContext(actor: Actor) {
   const catalog = await getCatalog(actor)
   return {
     catalog,
-    specialists: await listBookableSpecialists(actor),
+    specialists: await (async () => {
+      const list = await listBookableSpecialists(actor)
+      const today = riyadhToday()
+      const until = new Date(`${today}T00:00:00Z`)
+      until.setUTCDate(until.getUTCDate() + 120)
+      const off = await offCalendar(getDb(), list.map((x) => x.id), today, until.toISOString().slice(0, 10))
+      return list.map((x) => ({ ...x, off: off[x.id] ?? { weekly: [], dates: [] } }))
+    })(),
     moderators: await listModerators(actor),
     vipOnPackages: await getSetting(getDb(), 'vip_applies_to_packages'),
     permissions: { adjust: can(actor, 'pricing.adjust'), free: can(actor, 'pricing.free'), custom: can(actor, 'services.custom') },

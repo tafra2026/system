@@ -111,3 +111,33 @@ export async function setAccountSuspendedAction(employeeId: string, userId: stri
   if (result.ok) revalidatePath(`/staff/${employeeId}`)
   return result
 }
+
+export async function setWeeklyOffAction(employeeId: string, _prev: ActionState, form: FormData): Promise<ActionState> {
+  const { setWeeklyOff } = await import('@/server/services/time-off')
+  const result = await runAction(async (actor) => {
+    await setWeeklyOff(actor, employeeId, form.getAll('weekly').map(Number))
+    return undefined
+  })
+  if (result.ok) revalidatePath(`/staff/${employeeId}`)
+  return result
+}
+
+export async function addDayOffAction(employeeId: string, _prev: ActionState, form: FormData): Promise<ActionState> {
+  const { addDayOff } = await import('@/server/services/time-off')
+  const result = await runAction(async (actor) => {
+    await addDayOff(actor, employeeId, formString(form, 'date'), formString(form, 'note'))
+    return undefined
+  })
+  if (result.ok) revalidatePath(`/staff/${employeeId}`)
+  return result
+}
+
+export async function cancelDayOffAction(employeeId: string, dayOffId: string): Promise<ActionState> {
+  const { cancelDayOff } = await import('@/server/services/time-off')
+  const result = await runAction(async (actor) => {
+    await cancelDayOff(actor, dayOffId)
+    return undefined
+  })
+  if (result.ok) revalidatePath(`/staff/${employeeId}`)
+  return result
+}

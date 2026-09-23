@@ -557,6 +557,41 @@ export const tripLegs = pgTable(
   ],
 )
 
+/**
+ * Per-employee days off, set by management (spec follow-up: not all specialists work every
+ * day). Weekly pattern + specific dates. A cancelled date keeps its row (cancelled_at).
+ */
+export const employeeWeeklyOff = pgTable(
+  'employee_weekly_off',
+  {
+    employeeId: uuid('employee_id')
+      .notNull()
+      .references(() => employees.id, { onDelete: 'restrict' }),
+    /** 0 = Sunday … 6 = Saturday. */
+    weekday: integer('weekday').notNull(),
+    createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('employee_weekly_off_uq').on(t.employeeId, t.weekday), check('employee_weekly_off_weekday', sql`${t.weekday} BETWEEN 0 AND 6`)],
+)
+
+export const employeeDaysOff = pgTable(
+  'employee_days_off',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    employeeId: uuid('employee_id')
+      .notNull()
+      .references(() => employees.id, { onDelete: 'restrict' }),
+    /** Operational date the employee does not work. */
+    offDate: date('off_date', { mode: 'string' }).notNull(),
+    note: text('note'),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('employee_days_off_active_uq').on(t.employeeId, t.offDate).where(sql`${t.cancelledAt} IS NULL`)],
+)
+
 export type Employee = typeof employees.$inferSelect
 export type User = typeof users.$inferSelect
 export type SalaryRecord = typeof salaryRecords.$inferSelect
