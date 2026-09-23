@@ -1,10 +1,10 @@
 import 'dotenv/config'
-import { count } from 'drizzle-orm'
+import { count, eq } from 'drizzle-orm'
 import { riyadhMonthStart } from '../src/domain/operational-day'
 import { writeAudit } from '../src/server/audit'
 import { closeDb, getDb } from '../src/server/db'
-import { employees, salaryRecords } from '../src/server/db/schema'
-import { INITIAL_STAFF } from '../src/server/seed-data'
+import { appSettings, employees, salaryRecords } from '../src/server/db/schema'
+import { INITIAL_START_POINT, INITIAL_STAFF } from '../src/server/seed-data'
 import { seedCatalog } from '../src/server/seed-catalog'
 
 /** Idempotent: seeds the catalog and staff only when empty. Creates NO login accounts. */
@@ -12,6 +12,16 @@ async function main() {
   const db = getDb()
   const catalogCreated = await db.transaction((tx) => seedCatalog(tx))
   console.log(catalogCreated ? 'Seeded the service & package catalog.' : 'Catalog already exists — unchanged.')
+
+  // Start point: set once if missing (never overwrites a value changed in Settings).
+  const [sp] = await db.select().from(appSettings).where(eq(appSettings.key, 'start_point'))
+  if (!sp) {
+    await db.transaction(async (tx) => {
+      await tx.insert(appSettings).values({ key: 'start_point', value: INITIAL_START_POINT })
+      await writeAudit(tx, { actorUserId: null, action: 'settings.change', entityType: 'setting', entityId: 'start_point', after: { value: INITIAL_START_POINT } })
+    })
+    console.log('Start point set: ' + INITIAL_START_POINT.label)
+  }
 
   const [row] = await db.select({ value: count() }).from(employees)
   const value = row?.value ?? 0

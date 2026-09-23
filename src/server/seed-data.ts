@@ -14,3 +14,6 @@ export const INITIAL_STAFF: readonly { fullName: string; role: EmployeeRole; mon
   { fullName: 'ابو غيداء', role: 'driver', monthlySalarySar: 3000 },
   { fullName: 'الاء', role: 'moderator', monthlySalarySar: 1000 },
 ]
+
+/** Drivers' start point, confirmed by management on 2026-09-23 (Jeddah, As Salamah). */
+export const INITIAL_START_POINT = { label: 'سكن الأخصائيات — السلامة، جدة', latitude: 21.5919233, longitude: 39.1488579 }
