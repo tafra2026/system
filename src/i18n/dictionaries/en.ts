@@ -252,7 +252,7 @@ const en: Dictionary = {
     building: 'Building / apartment details',
     access: 'Access instructions',
     location: 'Map location',
-    locationHint: 'Paste the full Google Maps link or coordinates like 21.5433, 39.1728. Short links (maps.app.goo.gl) do not contain coordinates.',
+    locationHint: 'Paste a Google Maps link (full or short) or coordinates like 21.5433, 39.1728.',
     openMap: 'Open map',
     noLocation: 'No pinned location',
     archiveAddress: 'Archive address',
@@ -620,6 +620,7 @@ const en: Dictionary = {
     driver_day_off: 'The driver is off on this day.',
     employee_has_bookings: 'The employee has bookings on: {dates}. Move them first.',
     day_off_past: 'A day off cannot be added for a past day.',
+    short_link_unresolved: 'Could not open the short link. Open it in Google Maps, long-press the pin and copy the coordinates shown (e.g. 21.5433, 39.1728).',
   },
 }
 

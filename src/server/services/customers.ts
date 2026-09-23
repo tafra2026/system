@@ -1,7 +1,7 @@
 import { and, desc, eq, ilike, isNull, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { normalizePhone } from '@/domain/phone'
-import { parseCoordinates } from '@/domain/order'
+import { coordinatesFromInput, isShortMapsLink } from '../integrations/maps-links'
 import { authorize, type Actor } from '../authz/actor'
 import { writeAudit } from '../audit'
 import { getDb } from '../db'
@@ -116,10 +116,10 @@ const addressSchema = z.object({
   location: text(1000),
 })
 
-function parseAddress(input: unknown) {
+async function parseAddress(input: unknown) {
   const data = parseWith(addressSchema, input)
-  const coords = data.location ? parseCoordinates(data.location) : null
-  if (data.location && !coords) throw new ValidationError('validation_failed', { location: 'location_invalid' })
+  const coords = data.location ? await coordinatesFromInput(data.location) : null
+  if (data.location && !coords) throw new ValidationError('validation_failed', { location: isShortMapsLink(data.location) ? 'short_link_unresolved' : 'location_invalid' })
   return {
     label: data.label,
     district: data.district,
@@ -133,7 +133,7 @@ function parseAddress(input: unknown) {
 
 export async function addAddress(actor: Actor, customerId: string, input: unknown) {
   authorize(actor, 'customers.manage')
-  const data = parseAddress(input)
+  const data = await parseAddress(input)
   const db = getDb()
   const [c] = await db.select({ id: customers.id }).from(customers).where(eq(customers.id, customerId))
   if (!c) throw new NotFoundError()
@@ -143,7 +143,7 @@ export async function addAddress(actor: Actor, customerId: string, input: unknow
 
 export async function updateAddress(actor: Actor, addressId: string, input: unknown) {
   authorize(actor, 'customers.manage')
-  const data = parseAddress(input)
+  const data = await parseAddress(input)
   const [a] = await getDb().update(customerAddresses).set({ ...data, updatedAt: new Date() }).where(eq(customerAddresses.id, addressId)).returning()
   if (!a) throw new NotFoundError()
   return a

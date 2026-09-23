@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { parseCoordinates } from '@/domain/order'
+import { coordinatesFromInput, isShortMapsLink } from '@/server/integrations/maps-links'
 import { formString, runAction, type ActionState } from '@/server/actions'
 import { ValidationError } from '@/server/services/errors'
 import { setBooleanSetting, setSetting } from '@/server/services/settings'
@@ -20,9 +20,10 @@ export async function setStartPointAction(_prev: ActionState, form: FormData): P
     await runAction(async (actor) => {
       if (form.get('clear') === '1') return void (await setSetting(actor, 'start_point', null))
       const label = formString(form, 'label').trim()
-      const coords = parseCoordinates(formString(form, 'location'))
+      const location = formString(form, 'location')
+      const coords = await coordinatesFromInput(location)
       if (!label) throw new ValidationError('validation_failed', { label: 'required' })
-      if (!coords) throw new ValidationError('validation_failed', { location: 'location_invalid' })
+      if (!coords) throw new ValidationError('validation_failed', { location: isShortMapsLink(location) ? 'short_link_unresolved' : 'location_invalid' })
       await setSetting(actor, 'start_point', { label, ...coords })
     }),
   )
