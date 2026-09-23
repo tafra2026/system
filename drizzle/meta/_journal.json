@@ -64,6 +64,20 @@
       "when": 1790192633597,
       "tag": "0008_money_guards",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790192890994,
+      "tag": "0009_expenses_payroll",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790192891848,
+      "tag": "0010_payroll_guards",
+      "breakpoints": true
     }
   ]
 }

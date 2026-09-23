@@ -283,3 +283,20 @@ describe('order permissions', () => {
     expect(o!.grandTotalHalalas).toBe(0)
   })
 })
+
+describe('orders list filters', () => {
+  it('filters by operational date and shows the first visit time', async () => {
+    const ctx = await setup()
+    const { customer, address } = await customerWithAddress(ctx.mod.actor)
+    const swedish = await ctx.svc('massage_swedish')
+    const mk = (date: string) => saveOrder(ctx.mod.actor, null, { customerId: customer.id, addressId: address.id, lines: [{ kind: 'service', serviceId: swedish.id, beneficiaryIndex: 1, visitIndex: 0 }], visits: [visit(date, '20:00', [ctx.s1.employee.id])] }, { confirm: true })
+    const a = await mk('2026-10-01')
+    const b = await mk('2026-10-05')
+    const onlyA = await listOrders(ctx.mod.actor, { from: '2026-10-01', to: '2026-10-02' })
+    expect(onlyA.map((o) => o.id)).toEqual([a.id])
+    const fromB = await listOrders(ctx.mod.actor, { from: '2026-10-03' })
+    expect(fromB.map((o) => o.id)).toEqual([b.id])
+    expect(fromB[0]!.firstStart?.toISOString()).toBe('2026-10-05T17:00:00.000Z')
+    expect(fromB[0]!.visitCount).toBe(1)
+  })
+})

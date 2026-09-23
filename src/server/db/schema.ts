@@ -691,6 +691,173 @@ export const commissionEntries = pgTable(
   ],
 )
 
+// ─────────────────────────────── Expenses & payroll (phase 4) ───────────────────────────────
+
+export const expenseCategories = pgTable('expense_categories', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  code: text('code').notNull().unique(),
+  nameAr: text('name_ar').notNull(),
+  nameEn: text('name_en').notNull(),
+  active: boolean('active').notNull().default(true),
+  sortOrder: integer('sort_order').notNull().default(0),
+})
+
+export const expenseStatus = pgEnum('expense_status', ['draft', 'approved', 'voided'])
+
+/** Recurring expense template; a draft is generated per month for review before approval. */
+export const recurringExpenses = pgTable('recurring_expenses', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  categoryId: uuid('category_id')
+    .notNull()
+    .references(() => expenseCategories.id, { onDelete: 'restrict' }),
+  amountHalalas: integer('amount_halalas').notNull(),
+  description: text('description').notNull(),
+  active: boolean('active').notNull().default(true),
+  createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  ...timestamps,
+})
+
+/**
+ * An expense belongs to a period (month it relates to) and, separately, may have been paid
+ * on a date. Approved expenses are never edited: corrections void them with a reason.
+ */
+export const expenses = pgTable(
+  'expenses',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    categoryId: uuid('category_id')
+      .notNull()
+      .references(() => expenseCategories.id, { onDelete: 'restrict' }),
+    amountHalalas: integer('amount_halalas').notNull(),
+    periodMonth: text('period_month').notNull(),
+    paidOn: date('paid_on', { mode: 'string' }),
+    description: text('description').notNull(),
+    /** Supplies: item name. */
+    itemName: text('item_name'),
+    notes: text('notes'),
+    status: expenseStatus('status').notNull().default('draft'),
+    voidReason: text('void_reason'),
+    recurringId: uuid('recurring_id').references(() => recurringExpenses.id, { onDelete: 'set null' }),
+    isTest: boolean('is_test').notNull().default(false),
+    createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    approvedByUserId: uuid('approved_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    ...timestamps,
+  },
+  (t) => [
+    index('expenses_period_idx').on(t.periodMonth),
+    uniqueIndex('expenses_recurring_period_uq').on(t.recurringId, t.periodMonth),
+    check('expenses_amount_positive', sql`${t.amountHalalas} > 0`),
+    check('expenses_period_format', sql`${t.periodMonth} ~ '^[0-9]{4}-[0-9]{2}$'`),
+    check('expenses_void_reason', sql`${t.status} <> 'voided' OR length(trim(coalesce(${t.voidReason}, ''))) > 0`),
+  ],
+)
+
+/** Salary advance, repaid by payroll deductions. Paying an advance is not a salary expense. */
+export const advances = pgTable(
+  'advances',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    employeeId: uuid('employee_id')
+      .notNull()
+      .references(() => employees.id, { onDelete: 'restrict' }),
+    amountHalalas: integer('amount_halalas').notNull(),
+    monthlyInstallmentHalalas: integer('monthly_installment_halalas').notNull(),
+    givenOn: date('given_on', { mode: 'string' }).notNull(),
+    reason: text('reason'),
+    createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [check('advances_amounts', sql`${t.amountHalalas} > 0 AND ${t.monthlyInstallmentHalalas} > 0 AND ${t.monthlyInstallmentHalalas} <= ${t.amountHalalas}`)],
+)
+
+export const payrollStatus = pgEnum('payroll_status', ['draft', 'approved', 'closed'])
+
+/** Monthly payroll (calendar month). Paid 5th–10th of the following month (D11). */
+export const payrollRuns = pgTable(
+  'payroll_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    month: text('month').notNull(),
+    status: payrollStatus('status').notNull().default('draft'),
+    approvedByUserId: uuid('approved_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    approvedAt: timestamp('approved_at', { withTimezone: true }),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex('payroll_runs_month_uq').on(t.month), check('payroll_runs_month_format', sql`${t.month} ~ '^[0-9]{4}-[0-9]{2}$'`)],
+)
+
+export const payrollItems = pgTable(
+  'payroll_items',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    runId: uuid('run_id')
+      .notNull()
+      .references(() => payrollRuns.id, { onDelete: 'cascade' }),
+    employeeId: uuid('employee_id')
+      .notNull()
+      .references(() => employees.id, { onDelete: 'restrict' }),
+    baseSalaryHalalas: integer('base_salary_halalas').notNull(),
+    commissionsHalalas: integer('commissions_halalas').notNull(),
+    bonusesHalalas: integer('bonuses_halalas').notNull(),
+    deductionsHalalas: integer('deductions_halalas').notNull(),
+    advanceDeductionHalalas: integer('advance_deduction_halalas').notNull(),
+    netHalalas: integer('net_halalas').notNull(),
+  },
+  (t) => [uniqueIndex('payroll_items_run_employee_uq').on(t.runId, t.employeeId)],
+)
+
+export const payrollAdjustmentKind = pgEnum('payroll_adjustment_kind', ['bonus', 'deduction'])
+
+/** Documented bonus/deduction for an employee in a month (reason required). */
+export const payrollAdjustments = pgTable(
+  'payroll_adjustments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    month: text('month').notNull(),
+    employeeId: uuid('employee_id')
+      .notNull()
+      .references(() => employees.id, { onDelete: 'restrict' }),
+    kind: payrollAdjustmentKind('kind').notNull(),
+    amountHalalas: integer('amount_halalas').notNull(),
+    reason: text('reason').notNull(),
+    createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [check('payroll_adjustments_amount', sql`${t.amountHalalas} > 0`), check('payroll_adjustments_reason', sql`length(trim(${t.reason})) > 0`)],
+)
+
+/** Installments deducted from an approved payroll item. */
+export const advanceRepayments = pgTable('advance_repayments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  advanceId: uuid('advance_id')
+    .notNull()
+    .references(() => advances.id, { onDelete: 'restrict' }),
+  payrollItemId: uuid('payroll_item_id')
+    .notNull()
+    .references(() => payrollItems.id, { onDelete: 'restrict' }),
+  amountHalalas: integer('amount_halalas').notNull(),
+})
+
+/** Actual salary payments (cash flow), separate from the month's expense. */
+export const payrollPayments = pgTable(
+  'payroll_payments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    payrollItemId: uuid('payroll_item_id')
+      .notNull()
+      .references(() => payrollItems.id, { onDelete: 'restrict' }),
+    amountHalalas: integer('amount_halalas').notNull(),
+    paidOn: date('paid_on', { mode: 'string' }).notNull(),
+    method: text('method').notNull(),
+    reference: text('reference'),
+    createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [check('payroll_payments_amount', sql`${t.amountHalalas} > 0`)],
+)
+
 export type Employee = typeof employees.$inferSelect
 export type User = typeof users.$inferSelect
 export type SalaryRecord = typeof salaryRecords.$inferSelect
