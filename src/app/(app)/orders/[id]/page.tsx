@@ -12,6 +12,8 @@ import { can } from '@/server/authz/actor'
 import { pagePermission } from '@/server/auth/current'
 import { NotFoundError } from '@/server/services/errors'
 import { getOrderDetail, listBookableSpecialists, listModerators } from '@/server/services/orders'
+import { AddressPhotoUpload } from '@/components/address-photo-upload'
+import { BuildingPhoto } from '@/components/building-photo'
 import { AdjustPriceForm, AssignItemForm, CompleteVisitButton, DeliveryFeeForm, ModeratorForm, NotesForm, PendingReviewForm, RescheduleForm } from './order-forms'
 
 interface AddressSnapshot {
@@ -87,6 +89,13 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                 </a>
               )}
             </div>
+          )}
+          {order.addressId && can(actor, 'customers.manage') ? (
+            <div className="mt-3">
+              <AddressPhotoUpload addressId={order.addressId} photoUrl={d.buildingPhotoUrl} />
+            </div>
+          ) : (
+            d.buildingPhotoUrl && <BuildingPhoto url={d.buildingPhotoUrl} compact />
           )}
         </Card>
 

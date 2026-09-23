@@ -8,6 +8,7 @@ import { describeAppointment, formatCalendarDate, formatTime } from '@/i18n/form
 import { pagePermission } from '@/server/auth/current'
 import { dayPlan } from '@/server/services/trips'
 import { LegEditor } from './leg-editor'
+import { BuildingPhoto } from '@/components/building-photo'
 
 export default async function TripsPage({ searchParams }: { searchParams: Promise<{ date?: string }> }) {
   const { actor, allowed } = await pagePermission('schedule.manage')
@@ -72,6 +73,11 @@ export default async function TripsPage({ searchParams }: { searchParams: Promis
               }
             >
               {appt.afterMidnight && <p className="mb-2 text-xs text-warning">{t('datetime.afterMidnight', { date: appt.operationalDateLabel })}</p>}
+              {v.buildingPhotoUrl && (
+                <div className="mb-3 max-w-xs">
+                  <BuildingPhoto url={v.buildingPhotoUrl} compact />
+                </div>
+              )}
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                 {(['dropoff', 'pickup'] as const).map((kind) => (
                   <LegEditor

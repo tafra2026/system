@@ -219,6 +219,8 @@ const en: Dictionary = {
       'timeoff.weekly': 'Weekly day off changed',
       'timeoff.add': 'Day off added',
       'timeoff.cancel': 'Day off cancelled',
+      'customer.address_photo': 'Building photo uploaded',
+      'customer.address_photo_removed': 'Building photo removed',
       'system.seed': 'Initial data setup',
     },
   },
@@ -545,6 +547,17 @@ const en: Dictionary = {
     mine: 'My days off',
     offBadge: 'Day off',
   },
+  photo: {
+    title: 'Building photo (outside)',
+    hint: 'Helps the driver and specialists find the place. Saved with the customer’s address and shown on future bookings at this address.',
+    upload: 'Upload / take photo',
+    replace: 'Change photo',
+    remove: 'Remove photo',
+    uploading: 'Uploading…',
+    alt: 'Photo of the customer’s building from outside',
+    caption: 'Building from outside',
+    open: 'Open full-size photo',
+  },
   datetime: {
     afterMidnight: 'After midnight — part of the {date} operational day',
   },
@@ -621,6 +634,9 @@ const en: Dictionary = {
     employee_has_bookings: 'The employee has bookings on: {dates}. Move them first.',
     day_off_past: 'A day off cannot be added for a past day.',
     short_link_unresolved: 'Could not open the short link. Open it in Google Maps, long-press the pin and copy the coordinates shown (e.g. 21.5433, 39.1728).',
+    photo_type: 'Unsupported image type. Please upload a JPG or PNG photo.',
+    photo_too_large: 'The image is too large.',
+    photo_unreadable: 'The image could not be read.',
   },
 }
 

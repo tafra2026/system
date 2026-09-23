@@ -7,7 +7,7 @@ import { authorize, type Actor } from '../authz/actor'
 import { ForbiddenError } from '../authz/errors'
 import { writeAudit } from '../audit'
 import { getDb, type Executor } from '../db'
-import { customers, employees, orders, tripLegs, visits, visitSpecialists } from '../db/schema'
+import { customerAddresses, customers, employees, orders, tripLegs, visits, visitSpecialists } from '../db/schema'
 import { computeTravelMinutes, mapsConfigured } from '../integrations/google-routes'
 import { NotFoundError, ValidationError } from './errors'
 import { getSetting } from './settings'
@@ -66,10 +66,11 @@ export async function dayPlan(actor: Actor, date: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new ValidationError('validation_failed', { date: 'invalid' })
   const db = getDb()
   const rows = await db
-    .select({ v: visits, o: orders, customerName: customers.name })
+    .select({ v: visits, o: orders, customerName: customers.name, photoFileId: customerAddresses.photoFileId })
     .from(visits)
     .innerJoin(orders, eq(orders.id, visits.orderId))
     .innerJoin(customers, eq(customers.id, orders.customerId))
+    .leftJoin(customerAddresses, eq(customerAddresses.id, orders.addressId))
     .where(and(eq(visits.operationalDate, date), inArray(orders.status, ['confirmed', 'completed', 'pending_review']), inArray(visits.status, ['scheduled', 'completed'])))
     .orderBy(asc(visits.startsAt))
   const ids = rows.map((r) => r.v.id)
@@ -114,6 +115,7 @@ export async function dayPlan(actor: Actor, date: string) {
         endsAt: new Date(r.v.startsAt!.getTime() + r.v.durationMinutes * 60_000),
         address,
         hasCoords: address?.latitude != null && address?.longitude != null,
+        buildingPhotoUrl: r.photoFileId ? `/api/files/${r.photoFileId}` : null,
         specialists,
         suggestedDriverId: suggested,
         legs: legs
@@ -240,11 +242,12 @@ export async function myTrips(actor: Actor, fromDate: string, toDate: string) {
   if (actor.role !== 'driver') throw new ForbiddenError('schedule.read.own')
   const db = getDb()
   const rows = await db
-    .select({ l: tripLegs, v: visits, o: orders, customerName: customers.name })
+    .select({ l: tripLegs, v: visits, o: orders, customerName: customers.name, photoFileId: customerAddresses.photoFileId })
     .from(tripLegs)
     .innerJoin(visits, eq(visits.id, tripLegs.visitId))
     .innerJoin(orders, eq(orders.id, visits.orderId))
     .innerJoin(customers, eq(customers.id, orders.customerId))
+    .leftJoin(customerAddresses, eq(customerAddresses.id, orders.addressId))
     .where(and(eq(tripLegs.driverEmployeeId, actor.employeeId), eq(tripLegs.blocking, true), gte(visits.operationalDate, fromDate), lte(visits.operationalDate, toDate)))
     .orderBy(asc(tripLegs.departAt))
   const ids = [...new Set(rows.map((r) => r.v.id))]
@@ -269,7 +272,9 @@ export async function myTrips(actor: Actor, fromDate: string, toDate: string) {
       startedAt: r.l.startedAt,
       reference: r.o.reference,
       customerName: r.customerName,
-      destination: a ? { district: a.district, addressLine: a.addressLine ?? null, mapUrl: a.latitude != null && a.longitude != null ? mapsLink(a.latitude, a.longitude) : null } : null,
+      destination: a
+        ? { district: a.district, addressLine: a.addressLine ?? null, mapUrl: a.latitude != null && a.longitude != null ? mapsLink(a.latitude, a.longitude) : null, photoUrl: r.photoFileId ? `/api/files/${r.photoFileId}` : null }
+        : null,
       origin: { label: origin.label, mapUrl: origin.latitude != null && origin.longitude != null ? mapsLink(origin.latitude, origin.longitude) : null },
       specialists: specs.filter((s) => s.visitId === r.v.id).map((s) => nameOf(s, actor.locale)),
     }

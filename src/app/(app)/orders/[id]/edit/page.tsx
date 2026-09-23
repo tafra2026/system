@@ -29,7 +29,7 @@ export default async function EditDraftPage({ params }: { params: Promise<{ id: 
         orderId: id,
         reference: draft.reference,
         customer: { id: c.customer.id, name: c.customer.name, phoneE164: c.customer.phoneE164, isVip: c.customer.isVip },
-        addresses: c.addresses.map((a) => ({ id: a.id, label: a.label, district: a.district, addressLine: a.addressLine, latitude: a.latitude, longitude: a.longitude })),
+        addresses: c.addresses.map((a) => ({ id: a.id, label: a.label, district: a.district, addressLine: a.addressLine, latitude: a.latitude, longitude: a.longitude, photoFileId: a.photoFileId })),
         input: {
           addressId: draft.input.addressId ?? null,
           personsCount: draft.input.personsCount ?? 1,

@@ -18,7 +18,7 @@ export default async function NewOrderPage({ searchParams }: { searchParams: Pro
       initial = {
         ...initial,
         customer: { id: d.customer.id, name: d.customer.name, phoneE164: d.customer.phoneE164, isVip: d.customer.isVip },
-        addresses: d.addresses.map((a) => ({ id: a.id, label: a.label, district: a.district, addressLine: a.addressLine, latitude: a.latitude, longitude: a.longitude })),
+        addresses: d.addresses.map((a) => ({ id: a.id, label: a.label, district: a.district, addressLine: a.addressLine, latitude: a.latitude, longitude: a.longitude, photoFileId: a.photoFileId })),
       }
     } catch {
       // Unknown customer id: start from the customer step.

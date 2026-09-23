@@ -83,12 +83,13 @@ export interface AddressLite {
   addressLine: string | null
   latitude: number | null
   longitude: number | null
+  photoFileId?: string | null
 }
 
 export async function addAddressAction(customerId: string, _prev: ActionState<AddressLite>, form: FormData): Promise<ActionState<AddressLite>> {
   const result = await runAction(async (actor) => {
     const a = await addAddress(actor, customerId, addressFields(form))
-    return { id: a.id, label: a.label, district: a.district, addressLine: a.addressLine, latitude: a.latitude, longitude: a.longitude }
+    return { id: a.id, label: a.label, district: a.district, addressLine: a.addressLine, latitude: a.latitude, longitude: a.longitude, photoFileId: a.photoFileId }
   })
   if (result.ok) revalidatePath(`/customers/${customerId}`)
   return result
@@ -118,7 +119,7 @@ export async function customerAddressesAction(customerId: string): Promise<Actio
     const d = await getCustomer(actor, customerId)
     return {
       customer: { id: d.customer.id, name: d.customer.name, phoneE164: d.customer.phoneE164, isVip: d.customer.isVip },
-      addresses: d.addresses.map((a) => ({ id: a.id, label: a.label, district: a.district, addressLine: a.addressLine, latitude: a.latitude, longitude: a.longitude })),
+      addresses: d.addresses.map((a) => ({ id: a.id, label: a.label, district: a.district, addressLine: a.addressLine, latitude: a.latitude, longitude: a.longitude, photoFileId: a.photoFileId })),
     }
   })
 }

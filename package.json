@@ -25,6 +25,7 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "server-only": "^0.0.1",
+    "sharp": "^0.35.4",
     "zod": "^4.6.5"
   },
   "devDependencies": {
@@ -37,7 +38,6 @@
     "drizzle-kit": "^0.31.11",
     "playwright": "^1.63.0",
     "postcss": "^8.5.28",
-    "sharp": "^0.35.4",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",

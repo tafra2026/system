@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm'
 import {
   bigserial,
+  customType,
   boolean,
   check,
   date,
@@ -15,6 +16,12 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core'
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType() {
+    return 'bytea'
+  },
+})
 
 // Keep these lists in sync with src/server/authz/roles.ts and src/i18n dictionaries.
 export const employeeRole = pgEnum('employee_role', ['owner', 'admin_manager', 'moderator', 'specialist', 'driver'])
@@ -238,6 +245,28 @@ export const packageComponents = pgTable(
   (t) => [check('package_components_qty', sql`${t.quantity} > 0 AND ${t.taskDurationMinutes} > 0`)],
 )
 
+// ─────────────────────────────── Files ───────────────────────────────
+
+/**
+ * Small private images stored in the database (included in backups). Served only through an
+ * authenticated route that checks who may see them — never from a public URL or shared cache.
+ */
+export const files = pgTable(
+  'files',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    kind: text('kind').notNull(),
+    mimeType: text('mime_type').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    width: integer('width'),
+    height: integer('height'),
+    data: bytea('data').notNull(),
+    createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [check('files_size', sql`${t.sizeBytes} > 0 AND ${t.sizeBytes} <= 3000000`)],
+)
+
 // ─────────────────────────────── Customers ───────────────────────────────
 
 export const customers = pgTable(
@@ -273,6 +302,8 @@ export const customerAddresses = pgTable(
     accessInstructions: text('access_instructions'),
     latitude: doublePrecision('latitude'),
     longitude: doublePrecision('longitude'),
+    /** Photo of the building from outside, to help the driver find it. */
+    photoFileId: uuid('photo_file_id').references(() => files.id, { onDelete: 'set null' }),
     archivedAt: timestamp('archived_at', { withTimezone: true }),
     ...timestamps,
   },

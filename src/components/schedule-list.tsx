@@ -1,5 +1,6 @@
 import { directionsLink, mapsLink } from '@/domain/order'
 import { CopyButton } from './copy-button'
+import { BuildingPhoto } from './building-photo'
 import { createTranslator } from '@/i18n'
 import { describeAppointment } from '@/i18n/format'
 import type { Locale } from '@/i18n/types'
@@ -46,6 +47,7 @@ export function ScheduleList({ visits, locale, path }: { visits: Visit[]; locale
                 {t('schedule.access')}: {v.address.accessInstructions}
               </p>
             )}
+            {v.buildingPhotoUrl && <BuildingPhoto url={v.buildingPhotoUrl} />}
             {v.address && (
               <div className="mt-2 flex flex-col gap-1">
                 <div className="flex flex-wrap items-center gap-2">

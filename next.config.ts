@@ -2,7 +2,7 @@ import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
-  serverExternalPackages: ['@node-rs/argon2'],
+  serverExternalPackages: ['@node-rs/argon2', 'sharp'],
   async headers() {
     return [
       {

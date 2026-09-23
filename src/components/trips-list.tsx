@@ -5,6 +5,7 @@ import { markStartedAction } from '@/app/(app)/trips/actions'
 import { FormStatus, SubmitButton } from './form'
 import { useI18n } from './i18n-provider'
 import { Badge, EmptyState } from './ui'
+import { BuildingPhoto } from './building-photo'
 import { formatTime } from '@/i18n/format'
 import type { ActionState } from '@/server/actions'
 
@@ -16,7 +17,7 @@ export interface DriverLeg {
   startedAt: string | null
   reference: string
   customerName: string
-  destination: { district: string; addressLine: string | null; mapUrl: string | null } | null
+  destination: { district: string; addressLine: string | null; mapUrl: string | null; photoUrl: string | null } | null
   origin: { label: string; mapUrl: string | null }
   specialists: string[]
 }
@@ -59,6 +60,7 @@ export function TripsList({ legs }: { legs: DriverLeg[] }) {
           <p className="text-sm text-muted">
             {t('trips.specialistsToCarry')}: {l.specialists.join('، ')}
           </p>
+          {l.destination?.photoUrl && <BuildingPhoto url={l.destination.photoUrl} />}
           <div className="mt-2 flex flex-wrap items-center gap-3">
             {l.destination?.mapUrl && (
               <a href={l.destination.mapUrl} target="_blank" rel="noreferrer" className="text-sm font-medium text-brand-deep underline">

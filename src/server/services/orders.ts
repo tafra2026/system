@@ -798,6 +798,7 @@ export async function listOrders(actor: Actor, filters: OrderFilters = {}) {
 
 export interface OrderDetail {
   order: Order
+  buildingPhotoUrl: string | null
   customer: typeof customers.$inferSelect
   moderatorName: string | null
   lines: (typeof orderLines.$inferSelect & { sessions: { sessionNumber: number; visitId: string }[]; balance: SessionBalance | null })[]
@@ -820,6 +821,7 @@ export async function getOrderDetail(actor: Actor, orderId: string): Promise<Ord
   const [order] = await db.select().from(orders).where(eq(orders.id, orderId))
   if (!order) throw new NotFoundError()
   const [customer] = await db.select().from(customers).where(eq(customers.id, order.customerId))
+  const [addr] = order.addressId ? await db.select({ photo: customerAddresses.photoFileId }).from(customerAddresses).where(eq(customerAddresses.id, order.addressId)) : []
   const lines = await db.select().from(orderLines).where(eq(orderLines.orderId, orderId)).orderBy(asc(orderLines.sortOrder))
   const vs = await db.select().from(visits).where(eq(visits.orderId, orderId)).orderBy(asc(visits.sequence))
   const visitIds = vs.map((v) => v.id)
@@ -833,6 +835,7 @@ export async function getOrderDetail(actor: Actor, orderId: string): Promise<Ord
 
   return {
     order,
+    buildingPhotoUrl: addr?.photo ? `/api/files/${addr.photo}` : null,
     customer: customer!,
     moderatorName: name(order.moderatorEmployeeId),
     lines: lines.map((l) => {
@@ -916,11 +919,12 @@ export async function mySchedule(actor: Actor, fromDate: string, toDate: string)
   authorize(actor, 'schedule.read.own')
   const db = getDb()
   const rows = await db
-    .select({ v: visits, o: orders, customerName: customers.name })
+    .select({ v: visits, o: orders, customerName: customers.name, photoFileId: customerAddresses.photoFileId })
     .from(visitSpecialists)
     .innerJoin(visits, eq(visits.id, visitSpecialists.visitId))
     .innerJoin(orders, eq(orders.id, visits.orderId))
     .innerJoin(customers, eq(customers.id, orders.customerId))
+    .leftJoin(customerAddresses, eq(customerAddresses.id, orders.addressId))
     .where(
       and(
         eq(visitSpecialists.employeeId, actor.employeeId),
@@ -948,6 +952,7 @@ export async function mySchedule(actor: Actor, fromDate: string, toDate: string)
     customerName: r.customerName,
     personsCount: r.o.personsCount,
     address: r.o.addressSnapshot as { district: string; addressLine: string | null; buildingDetails: string | null; accessInstructions: string | null; latitude: number | null; longitude: number | null } | null,
+    buildingPhotoUrl: r.photoFileId ? `/api/files/${r.photoFileId}` : null,
     notes: r.v.notes,
     team: specs.filter((s) => s.visitId === r.v.id && s.id !== actor.employeeId).map((s) => empName(s, actor.locale)!),
     items: items

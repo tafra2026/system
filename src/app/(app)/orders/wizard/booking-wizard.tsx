@@ -14,6 +14,7 @@ import { translateError } from '@/i18n'
 import type { MessageKey } from '@/i18n/types'
 import { formatMoney } from '@/i18n/format'
 import { AddAddressForm } from '../../customers/customer-forms'
+import { AddressPhotoUpload } from '@/components/address-photo-upload'
 import { customerAddressesAction, lookupPhoneAction, quickCreateCustomerAction, type AddressLite, type CustomerLite } from '../../customers/actions'
 import { saveOrderAction } from '../actions'
 
@@ -344,6 +345,19 @@ export function BookingWizard({ ctx, initial }: { ctx: WizardContext; initial: W
                 </label>
               ))}
             </div>
+            {addressId && (
+              <div className="rounded-xl border border-line p-3">
+                <AddressPhotoUpload
+                  key={addressId}
+                  addressId={addressId}
+                  photoUrl={(() => {
+                    const f = addresses.find((a) => a.id === addressId)?.photoFileId
+                    return f ? `/api/files/${f}` : null
+                  })()}
+                  onChanged={(url) => setAddresses((as) => as.map((a) => (a.id === addressId ? { ...a, photoFileId: url ? url.split('/').pop()! : null } : a)))}
+                />
+              </div>
+            )}
             <details className="rounded-xl border border-dashed border-line p-3">
               <summary className="cursor-pointer text-sm font-semibold text-brand-deep">{t('customers.addAddress')}</summary>
               <div className="mt-3">

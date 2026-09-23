@@ -10,6 +10,7 @@ import { pagePermission } from '@/server/auth/current'
 import { NotFoundError } from '@/server/services/errors'
 import { getCustomer } from '@/server/services/customers'
 import { AddAddressForm, EditAddressForm, EditCustomerForm, VipForm } from '../customer-forms'
+import { AddressPhotoUpload } from '@/components/address-photo-upload'
 
 import { orderStatusTone as statusTone } from '@/components/status-tones'
 
@@ -87,7 +88,8 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
                   <span className="ms-2 text-xs font-normal text-muted">{t('customers.noLocation')}</span>
                 )}
               </summary>
-              <div className="mt-3">
+              <div className="mt-3 flex flex-col gap-4">
+                <AddressPhotoUpload addressId={a.id} photoUrl={a.photoFileId ? `/api/files/${a.photoFileId}` : null} />
                 <EditAddressForm
                   customerId={customer.id}
                   addressId={a.id}
