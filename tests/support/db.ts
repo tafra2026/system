@@ -16,7 +16,7 @@ export function assertTestDatabase() {
 export async function resetDb() {
   assertTestDatabase()
   // TRUNCATE is not blocked by the append-only row triggers; it is used only on the test DB.
-  await getDb().execute(sql`TRUNCATE package_sessions, visit_items, visit_specialists, visits, order_lines, order_moderator_changes, orders, customer_addresses, customers, package_components, packages, services, service_categories, sessions, account_invites, audit_log, salary_records, users, employees, app_settings RESTART IDENTITY CASCADE`)
+  await getDb().execute(sql`TRUNCATE trip_legs, team_members, teams, package_sessions, visit_items, visit_specialists, visits, order_lines, order_moderator_changes, orders, customer_addresses, customers, package_components, packages, services, service_categories, sessions, account_invites, audit_log, salary_records, users, employees, app_settings RESTART IDENTITY CASCADE`)
 }
 
 let counter = 0

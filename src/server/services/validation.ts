@@ -28,3 +28,14 @@ export function pgErrorCode(err: unknown): string | undefined {
   }
   return undefined
 }
+
+/** Name of the violated Postgres constraint, if any. */
+export function pgConstraint(err: unknown): string | undefined {
+  let e: unknown = err
+  for (let i = 0; i < 4 && e && typeof e === 'object'; i++) {
+    const c = (e as { constraint?: unknown }).constraint
+    if (typeof c === 'string') return c
+    e = (e as { cause?: unknown }).cause
+  }
+  return undefined
+}

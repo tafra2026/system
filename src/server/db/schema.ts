@@ -479,6 +479,84 @@ export const packageSessions = pgTable(
   ],
 )
 
+// ─────────────────────────────── Teams & trips (phase 3) ───────────────────────────────
+
+export const teams = pgTable('teams', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  active: boolean('active').notNull().default(true),
+  ...timestamps,
+})
+
+/**
+ * Effective-dated team membership: [effective_from, effective_to). Changing a team closes
+ * the open row from a date (today or later) and opens a new one; past rows are never
+ * rewritten. An exclusion constraint (migration 0005) keeps one team per employee per day.
+ */
+export const teamMembers = pgTable(
+  'team_members',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    teamId: uuid('team_id')
+      .notNull()
+      .references(() => teams.id, { onDelete: 'restrict' }),
+    employeeId: uuid('employee_id')
+      .notNull()
+      .references(() => employees.id, { onDelete: 'restrict' }),
+    effectiveFrom: date('effective_from', { mode: 'string' }).notNull(),
+    effectiveTo: date('effective_to', { mode: 'string' }),
+    createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('team_members_employee_idx').on(t.employeeId),
+    check('team_members_range', sql`${t.effectiveTo} IS NULL OR ${t.effectiveTo} > ${t.effectiveFrom}`),
+  ],
+)
+
+export const tripLegKind = pgEnum('trip_leg_kind', ['dropoff', 'pickup'])
+export const travelSource = pgEnum('travel_source', ['google', 'manual'])
+
+/**
+ * A driving leg for a visit: take the specialists TO the customer (dropoff, arriving at
+ * the visit start) or collect them (pickup, arriving at the visit end). Departure =
+ * arrival − travel − buffer. A DB exclusion constraint prevents overlapping legs for a
+ * driver. These are planned times — never live tracking.
+ */
+export const tripLegs = pgTable(
+  'trip_legs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    visitId: uuid('visit_id')
+      .notNull()
+      .references(() => visits.id, { onDelete: 'cascade' }),
+    kind: tripLegKind('kind').notNull(),
+    driverEmployeeId: uuid('driver_employee_id')
+      .notNull()
+      .references(() => employees.id, { onDelete: 'restrict' }),
+    /** Origin: the business start point, or the location of another visit. */
+    originVisitId: uuid('origin_visit_id').references(() => visits.id, { onDelete: 'set null' }),
+    originSnapshot: jsonb('origin_snapshot').notNull(),
+    travelMinutes: integer('travel_minutes').notNull(),
+    travelSource: travelSource('travel_source').notNull(),
+    bufferMinutes: integer('buffer_minutes').notNull(),
+    departAt: timestamp('depart_at', { withTimezone: true }).notNull(),
+    arriveAt: timestamp('arrive_at', { withTimezone: true }).notNull(),
+    blocking: boolean('blocking').notNull().default(true),
+    /** Set when the driver taps "I started heading to the customer". */
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('trip_legs_visit_kind_uq').on(t.visitId, t.kind),
+    index('trip_legs_driver_idx').on(t.driverEmployeeId),
+    check('trip_legs_times', sql`${t.arriveAt} > ${t.departAt}`),
+    check('trip_legs_travel', sql`${t.travelMinutes} BETWEEN 1 AND 300`),
+    check('trip_legs_buffer', sql`${t.bufferMinutes} BETWEEN 10 AND 15`),
+  ],
+)
+
 export type Employee = typeof employees.$inferSelect
 export type User = typeof users.$inferSelect
 export type SalaryRecord = typeof salaryRecords.$inferSelect

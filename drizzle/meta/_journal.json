@@ -29,6 +29,20 @@
       "when": 1790185505785,
       "tag": "0003_booking_guards",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790188950518,
+      "tag": "0004_teams_trips",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790188951437,
+      "tag": "0005_trip_guards",
+      "breakpoints": true
     }
   ]
 }

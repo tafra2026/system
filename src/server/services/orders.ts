@@ -27,7 +27,9 @@ import {
   type Order,
 } from '../db/schema'
 import { NotFoundError, ValidationError } from './errors'
-import { getSetting } from './settings'
+import { getDaysOff, getSetting } from './settings'
+import { isDayOff } from '@/domain/trips'
+import { syncLegsForVisit } from './trip-sync'
 import { parseWith, pgErrorCode } from './validation'
 
 // ─────────────────────────────── Input schema ───────────────────────────────
@@ -175,6 +177,7 @@ async function planOrder(db: Executor, actor: Actor, input: ParsedInput, opts: {
 
   const vipCustomer = opts.vipAtBooking ?? customer.isVip
   const vipOnPackages = await getSetting(db, 'vip_applies_to_packages')
+  const daysOff = await getDaysOff(db)
 
   // Reference data.
   const serviceIds = input.lines.flatMap((l) => (l.kind === 'service' ? [l.serviceId] : []))
@@ -337,6 +340,7 @@ async function planOrder(db: Executor, actor: Actor, input: ParsedInput, opts: {
       if (!v.date || !v.time) fieldError(field, 'datetime_incomplete')
       startsAt = riyadhLocalToInstant(v.date, v.time)
       if (!isAllowedStartTime(startsAt)) fieldError(field, 'outside_hours')
+      if (isDayOff(operationalDateOf(startsAt), daysOff)) fieldError(field, 'day_off')
     }
     const declared = lines.filter((l) => l.kind === 'package' && l.sessionVisitIndexes.includes(i)).map((l) => l.durationMinutes)
     const tasks = lines.flatMap((l) => (l.kind === 'package' ? [] : l.items.filter((it) => it.visitIndex === i))).map((it) => ({ specialistId: it.specialistEmployeeId, taskMinutes: it.taskDurationMinutes }))
@@ -553,6 +557,7 @@ export async function rescheduleVisit(actor: Actor, visitId: string, raw: unknow
   const input = parseWith(rescheduleSchema, raw)
   const startsAt = riyadhLocalToInstant(input.date, input.time)
   if (!isAllowedStartTime(startsAt)) fieldError('time', 'outside_hours')
+  if (isDayOff(operationalDateOf(startsAt), await getDaysOff(getDb()))) fieldError('date', 'day_off')
   const specialistIds = [...new Set(input.specialistIds)]
   try {
     return await getDb().transaction(async (tx) => {
@@ -580,6 +585,8 @@ export async function rescheduleVisit(actor: Actor, visitId: string, raw: unknow
           await tx.update(visitItems).set({ specialistEmployeeId: specialistIds[0]! }).where(eq(visitItems.id, it.id))
         }
       }
+      // Driving legs keep their travel estimate and move with the visit (may raise a driver conflict).
+      await syncLegsForVisit(tx, visitId)
       await refreshOrderStatus(tx, o.id)
       await writeAudit(tx, {
         actorUserId: actor.userId,
@@ -646,6 +653,7 @@ export async function markVisitPendingReview(actor: Actor, visitId: string, reas
     if (o.status === 'draft') throw new ValidationError('order_is_draft')
     await tx.update(visits).set({ status: 'pending_review', pendingReason: why, updatedAt: new Date() }).where(eq(visits.id, visitId))
     await tx.update(visitSpecialists).set({ blocking: false }).where(eq(visitSpecialists.visitId, visitId))
+    await syncLegsForVisit(tx, visitId)
     await refreshOrderStatus(tx, o.id)
     await writeAudit(tx, { actorUserId: actor.userId, action: 'visit.pending_review', entityType: 'order', entityId: o.id, after: { visit: v.sequence }, reason: why })
   })
