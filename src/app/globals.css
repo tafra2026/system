@@ -1,0 +1,56 @@
+@import 'tailwindcss';
+
+/*
+ * Pamper Me design tokens — see docs/DESIGN.md for contrast ratios.
+ * Confirmed brand colours: cream #FEF3E8, primary #AA8077.
+ * Derived (documented): brand-deep #7E574F for text/buttons, brand-soft #F3E4DC for tinted surfaces.
+ */
+@theme {
+  --color-cream: #fef3e8;
+  --color-brand: #aa8077;
+  --color-brand-deep: #7e574f;
+  --color-brand-soft: #f3e4dc;
+  --color-surface: #ffffff;
+  --color-ink: #2e2320;
+  --color-muted: #6a5550;
+  --color-line: #e8d6cc;
+  --color-danger: #a3322a;
+  --color-danger-soft: #fbeae8;
+  --color-success: #2f6b45;
+  --color-success-soft: #e8f3ec;
+  --color-warning: #7a4f00;
+  --color-warning-soft: #fbf1dd;
+  --font-sans: var(--font-plex-arabic), system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif;
+  --radius-card: 1rem;
+}
+
+html {
+  background: var(--color-cream);
+  color: var(--color-ink);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  min-height: 100dvh;
+  background: var(--color-cream);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-brand-deep);
+  outline-offset: 2px;
+}
+
+/* Numbers, phones and usernames stay left-to-right inside Arabic text. */
+.ltr-data {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
