@@ -29,6 +29,6 @@ export async function removeLegAction(visitId: string, kind: 'dropoff' | 'pickup
 
 export async function markStartedAction(legId: string): Promise<ActionState> {
   const r = await runAction(async (actor) => void (await markLegStarted(actor, legId)))
-  if (r.ok) revalidatePath('/my-trips')
+  if (r.ok) revalidatePath('/', 'layout')
   return { ok: r.ok, error: r.error, at: r.at }
 }

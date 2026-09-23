@@ -20,10 +20,16 @@ export async function getSessionToken(): Promise<string | undefined> {
   return (await cookies()).get(SESSION_COOKIE)?.value
 }
 
-/** For pages: redirect to sign-in when there is no valid session. */
+/** Signed in, but still on a temporary password chosen by management. */
+export async function getPasswordChangeActor(): Promise<Actor | null> {
+  const store = await cookies()
+  return actorFromSessionToken(store.get(SESSION_COOKIE)?.value, { allowPendingPasswordChange: true })
+}
+
+/** For pages: redirect to sign-in (or to the forced password change) when there is no usable session. */
 export async function requireActor(): Promise<Actor> {
   const actor = await getCurrentActor()
-  if (!actor) redirect('/login')
+  if (!actor) redirect((await getPasswordChangeActor()) ? '/change-password' : '/login')
   return actor
 }
 
@@ -37,7 +43,7 @@ export async function pagePermission(permission: Permission): Promise<{ actor: A
 }
 
 export const getRequestLocale = cache(async (): Promise<Locale> => {
-  const actor = await getCurrentActor()
+  const actor = (await getCurrentActor()) ?? (await getPasswordChangeActor())
   if (actor) return actor.locale
   const cookie = (await cookies()).get(LOCALE_COOKIE)?.value
   return isLocale(cookie) ? cookie : DEFAULT_LOCALE

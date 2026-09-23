@@ -5,6 +5,7 @@ import { authorize, type Actor } from '../authz/actor'
 import { writeAudit } from '../audit'
 import { getDb, type Executor } from '../db'
 import { appSettings } from '../db/schema'
+import { MESSAGE_KINDS, type MessageKind, type MessageLocale } from '@/domain/messages'
 
 /** Business settings with documented defaults (docs/DECISIONS.md). */
 export interface StartPoint {
@@ -23,6 +24,12 @@ export const SETTING_DEFAULTS = {
   /** Weekly days off (0 = Sunday … 6 = Saturday) and specific dates. None by default. */
   weekly_days_off: [] as number[],
   days_off: [] as string[],
+  /** Management's own wording per message type and language; missing ones use the defaults. */
+  message_templates: {} as Partial<Record<MessageKind, Partial<Record<MessageLocale, string>>>>,
+  /** Optional link placed in the review request (e.g. a Google review page). */
+  review_link: null as string | null,
+  /** Who sends "on the way": the trip's driver, or the order's moderator (spec §13). */
+  on_the_way_sender: 'driver' as 'driver' | 'moderator',
 }
 export type SettingKey = keyof typeof SETTING_DEFAULTS
 
@@ -40,6 +47,9 @@ export async function getAllSettings(actor: Actor) {
     default_buffer_minutes: await getSetting(db, 'default_buffer_minutes'),
     weekly_days_off: await getSetting(db, 'weekly_days_off'),
     days_off: await getSetting(db, 'days_off'),
+    message_templates: await getSetting(db, 'message_templates'),
+    review_link: await getSetting(db, 'review_link'),
+    on_the_way_sender: await getSetting(db, 'on_the_way_sender'),
   }
 }
 
@@ -53,6 +63,9 @@ const settingSchemas = {
   default_buffer_minutes: z.number().int().min(10).max(15),
   weekly_days_off: z.array(z.number().int().min(0).max(6)).max(7),
   days_off: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).max(366),
+  message_templates: z.partialRecord(z.enum(MESSAGE_KINDS), z.partialRecord(z.enum(['ar', 'en']), z.string().trim().min(1).max(2000))),
+  review_link: z.url({ protocol: /^https$/ }).max(500).nullable(),
+  on_the_way_sender: z.enum(['driver', 'moderator']),
 } satisfies Record<SettingKey, z.ZodType>
 
 export async function setSetting<K extends SettingKey>(actor: Actor, key: K, value: (typeof SETTING_DEFAULTS)[K]) {

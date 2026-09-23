@@ -5,6 +5,7 @@ import { coordinatesFromInput, isShortMapsLink } from '@/server/integrations/map
 import { formString, runAction, type ActionState } from '@/server/actions'
 import { ValidationError } from '@/server/services/errors'
 import { setBooleanSetting, setSetting } from '@/server/services/settings'
+import { DEFAULT_MESSAGE_TEMPLATES, MESSAGE_KINDS, unknownPlaceholders, type MessageKind, type MessageLocale } from '@/domain/messages'
 
 function done(r: ActionState<unknown>): ActionState {
   if (r.ok) revalidatePath('/settings')
@@ -44,6 +45,35 @@ export async function setDaysOffAction(_prev: ActionState, form: FormData): Prom
       if (dates.some((d) => !/^\d{4}-\d{2}-\d{2}$/.test(d) || Number.isNaN(Date.parse(d)))) throw new ValidationError('validation_failed', { dates: 'invalid' })
       await setSetting(actor, 'weekly_days_off', [...new Set(weekly)].sort())
       await setSetting(actor, 'days_off', [...new Set(dates)].sort())
+    }),
+  )
+}
+
+/** Only wording that differs from the built-in default is stored; an emptied box restores the default. */
+export async function setMessageTemplatesAction(_prev: ActionState, form: FormData): Promise<ActionState> {
+  return done(
+    await runAction(async (actor) => {
+      const custom: Partial<Record<MessageKind, Partial<Record<MessageLocale, string>>>> = {}
+      for (const kind of MESSAGE_KINDS) {
+        for (const loc of ['ar', 'en'] as const) {
+          const text = formString(form, `${kind}.${loc}`).replace(/\r\n/g, '\n').trim()
+          if (!text || text === DEFAULT_MESSAGE_TEMPLATES[kind][loc]) continue
+          if (unknownPlaceholders(text).length) throw new ValidationError('validation_failed', { [`${kind}.${loc}`]: 'template_unknown_placeholder' })
+          custom[kind] = { ...custom[kind], [loc]: text }
+        }
+      }
+      await setSetting(actor, 'message_templates', custom)
+    }),
+  )
+}
+
+export async function setMessageOptionsAction(_prev: ActionState, form: FormData): Promise<ActionState> {
+  return done(
+    await runAction(async (actor) => {
+      const link = formString(form, 'reviewLink').trim()
+      await setSetting(actor, 'review_link', link || null)
+      const sender = formString(form, 'onTheWaySender')
+      await setSetting(actor, 'on_the_way_sender', sender === 'moderator' ? 'moderator' : 'driver')
     }),
   )
 }

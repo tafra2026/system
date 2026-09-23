@@ -13,6 +13,7 @@ import { NotFoundError, ValidationError } from './errors'
 import { getSetting } from './settings'
 import { teamsOn } from './teams'
 import { syncLegsForVisit } from './trip-sync'
+import { syncMessageTasks } from './messages'
 import { employeesOffOn } from './time-off'
 import { parseWith, pgConstraint, pgErrorCode } from './validation'
 
@@ -206,6 +207,7 @@ export async function saveLeg(actor: Actor, visitId: string, raw: unknown) {
         .values({ visitId, kind: input.kind, ...values, createdByUserId: actor.userId })
         .onConflictDoUpdate({ target: [tripLegs.visitId, tripLegs.kind], set: { ...values, startedAt: null } })
       await syncLegsForVisit(tx, visitId)
+      await syncMessageTasks(tx, o.id)
       await writeAudit(tx, {
         actorUserId: actor.userId,
         action: 'trip.leg_saved',
@@ -230,6 +232,7 @@ export async function removeLeg(actor: Actor, visitId: string, kind: LegKind) {
     const [v] = await tx.select().from(visits).where(eq(visits.id, visitId))
     if (v?.startsAt) await tx.update(visitSpecialists).set({ startsAt: v.startsAt }).where(and(eq(visitSpecialists.visitId, visitId), eq(visitSpecialists.blocking, true)))
     await syncLegsForVisit(tx, visitId)
+    if (v) await syncMessageTasks(tx, v.orderId)
     await writeAudit(tx, { actorUserId: actor.userId, action: 'trip.leg_removed', entityType: 'visit', entityId: visitId, after: { kind } })
   })
 }
@@ -263,6 +266,7 @@ export async function myTrips(actor: Actor, fromDate: string, toDate: string) {
     const origin = r.l.originSnapshot as Point
     return {
       legId: r.l.id,
+      visitId: r.v.id,
       kind: r.l.kind,
       departAt: r.l.departAt,
       arriveAt: r.l.arriveAt,
@@ -283,7 +287,7 @@ export async function myTrips(actor: Actor, fromDate: string, toDate: string) {
 
 /**
  * Driver taps "I started heading to the customer". Records the time once (idempotent).
- * The WhatsApp "on the way" message is prepared from this in phase 5.
+ * This also prepares the WhatsApp "on the way" message.
  */
 export async function markLegStarted(actor: Actor, legId: string) {
   authorize(actor, 'schedule.read.own')
@@ -293,6 +297,9 @@ export async function markLegStarted(actor: Actor, legId: string) {
     if (leg.driverEmployeeId !== actor.employeeId) throw new ForbiddenError('schedule.read.own')
     if (leg.startedAt) return
     await tx.update(tripLegs).set({ startedAt: new Date() }).where(eq(tripLegs.id, legId))
+    // Prepares the "on the way" message for this order and destination (spec §13).
+    const [v] = await tx.select({ orderId: visits.orderId }).from(visits).where(eq(visits.id, leg.visitId))
+    if (v) await syncMessageTasks(tx, v.orderId)
     await writeAudit(tx, { actorUserId: actor.userId, action: 'trip.leg_started', entityType: 'visit', entityId: leg.visitId, after: { kind: leg.kind } })
   })
 }

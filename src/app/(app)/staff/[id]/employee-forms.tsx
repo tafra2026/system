@@ -10,7 +10,9 @@ import {
   addSalaryAction,
   changeRoleAction,
   createAccountAction,
+  createAccountWithPasswordAction,
   reissueInviteAction,
+  setPasswordAction,
   setAccountSuspendedAction,
   setStatusAction,
   updateDetailsAction,
@@ -126,24 +128,68 @@ function InviteLink({ result }: { result: InviteResult }) {
   )
 }
 
-export function AccountPanel({ employeeId, account, canCreate }: { employeeId: string; account: { id: string; status: 'pending' | 'active' | 'suspended' } | null; canCreate: boolean }) {
+function PasswordFields({ fieldError }: { fieldError: (name: string) => string | undefined }) {
+  const { t } = useI18n()
+  return (
+    <>
+      <Field label={t('staff.password')} name="password" hint={t('auth.passwordRule')} error={fieldError('password')}>
+        {(p) => <input {...p} type="password" autoComplete="new-password" className={`${inputClass} ltr-data`} dir="ltr" minLength={10} maxLength={200} required />}
+      </Field>
+      <Field label={t('auth.confirmPassword')} name="confirm" error={fieldError('confirm')}>
+        {(p) => <input {...p} type="password" autoComplete="new-password" className={`${inputClass} ltr-data`} dir="ltr" minLength={10} maxLength={200} required />}
+      </Field>
+      <label className="flex min-h-11 items-center gap-2 text-sm text-ink">
+        <input type="checkbox" name="requireChange" defaultChecked className="h-5 w-5 accent-[var(--color-brand-deep)]" />
+        {t('staff.requireChange')}
+      </label>
+    </>
+  )
+}
+
+export function AccountPanel({
+  employeeId,
+  account,
+  canCreate,
+}: {
+  employeeId: string
+  account: { id: string; status: 'pending' | 'active' | 'suspended' } | null
+  canCreate: boolean
+}) {
   const { t } = useI18n()
   const [createState, createAction] = useActionState(createAccountAction.bind(null, employeeId), initial)
+  const [createPwState, createPwAction] = useActionState(createAccountWithPasswordAction.bind(null, employeeId), initial)
+  const [setPwState, setPw] = useActionState(setPasswordAction.bind(null, employeeId, account?.id ?? ''), initial)
   const [reissueState, reissue] = useActionState(reissueInviteAction.bind(null, employeeId, account?.id ?? ''), initial)
   const [suspendState, suspend] = useActionState(setAccountSuspendedAction.bind(null, employeeId, account?.id ?? '', account?.status !== 'suspended'), initial)
   const fieldError = useFieldErrors(createState)
+  const pwFieldError = useFieldErrors(createPwState)
+  const setPwFieldError = useFieldErrors(setPwState)
 
   if (!account) {
     if (createState.ok && createState.data) return <InviteLink result={createState.data} />
     if (!canCreate) return <Alert tone="warning">{t('errors.employee_not_active')}</Alert>
     return (
-      <form action={createAction} className="flex flex-col gap-3">
-        <FormStatus state={createState} />
-        <Field label={t('staff.username')} name="username" hint={t('staff.usernameHint')} error={fieldError('username')}>
-          {(p) => <input {...p} className={`${inputClass} ltr-data`} dir="ltr" autoCapitalize="none" spellCheck={false} required pattern="[a-zA-Z0-9._\-]{3,32}" />}
-        </Field>
-        <SubmitButton>{t('staff.createAccount')}</SubmitButton>
-      </form>
+      <div className="flex flex-col gap-4">
+        <form action={createPwAction} className="flex flex-col gap-3">
+          <FormStatus state={createPwState} />
+          <Field label={t('staff.username')} name="username" hint={t('staff.usernameHint')} error={pwFieldError('username')}>
+            {(p) => <input {...p} className={`${inputClass} ltr-data`} dir="ltr" autoComplete="off" autoCapitalize="none" spellCheck={false} required pattern="[a-zA-Z0-9._\-]{3,32}" />}
+          </Field>
+          <PasswordFields fieldError={pwFieldError} />
+          <p className="text-xs text-muted">{t('staff.passwordPrivateHint')}</p>
+          <SubmitButton>{t('staff.createWithPassword')}</SubmitButton>
+        </form>
+        <details className="rounded-xl border border-line p-3">
+          <summary className="min-h-11 cursor-pointer content-center text-sm font-semibold text-ink">{t('staff.orSetupLink')}</summary>
+          <form action={createAction} className="mt-3 flex flex-col gap-3">
+            <FormStatus state={createState} />
+            <Field label={t('staff.username')} name="username" hint={t('staff.usernameHint')} error={fieldError('username')}>
+              {(p) => <input {...p} className={`${inputClass} ltr-data`} dir="ltr" autoCapitalize="none" spellCheck={false} required pattern="[a-zA-Z0-9._\-]{3,32}" />}
+            </Field>
+            <SubmitButton variant="secondary">{t('staff.createAccount')}</SubmitButton>
+          </form>
+        </details>
+      </div>
     )
   }
   return (
@@ -154,8 +200,18 @@ export function AccountPanel({ employeeId, account, canCreate }: { employeeId: s
       ) : (
         createState.ok && createState.data && <InviteLink result={createState.data} />
       )}
+      {createPwState.ok && <Alert tone="success">{t('staff.accountCreated')}</Alert>}
       <FormStatus state={reissueState} />
       <FormStatus state={suspendState} successText={t('common.saved')} />
+      <details className="rounded-xl border border-line p-3">
+        <summary className="min-h-11 cursor-pointer content-center text-sm font-semibold text-ink">{t('staff.setPassword')}</summary>
+        <form action={setPw} className="mt-3 flex flex-col gap-3">
+          <FormStatus state={setPwState} successText={t('staff.passwordSet')} />
+          <PasswordFields fieldError={setPwFieldError} />
+          <p className="text-xs text-muted">{t('staff.setPasswordHint')}</p>
+          <SubmitButton>{t('staff.setPassword')}</SubmitButton>
+        </form>
+      </details>
       <div className="flex flex-wrap gap-2">
         <form action={reissue}>
           <SubmitButton variant="secondary">{t('staff.reissueLink')}</SubmitButton>

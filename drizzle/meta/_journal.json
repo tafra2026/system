@@ -85,6 +85,20 @@
       "when": 1790193373987,
       "tag": "0011_address_photos",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790195417804,
+      "tag": "0012_message_tasks",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1790195426783,
+      "tag": "0013_message_task_guards",
+      "breakpoints": true
     }
   ]
 }

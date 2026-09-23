@@ -3,9 +3,11 @@ import { z } from 'zod'
 import { authorize, type Actor } from '../authz/actor'
 import { defaultLocaleForRole } from '../authz/permissions'
 import { writeAudit } from '../audit'
-import { newToken, sha256 } from '../auth/crypto'
+import { hashPassword, newToken, sha256 } from '../auth/crypto'
+import { deleteAllSessionsForUser } from '../auth/sessions'
 import { getDb, type Executor } from '../db'
 import { accountInvites, employees, users } from '../db/schema'
+import { validateNewPassword } from './auth'
 import { NotFoundError, ValidationError } from './errors'
 
 export const INVITE_TTL_HOURS = 48
@@ -108,4 +110,73 @@ export async function setAccountSuspended(actor: Actor, userId: string, suspende
       after: { status: next },
     })
   })
+}
+
+/**
+ * Management creates the account directly with a username and a password it chooses
+ * (docs/DECISIONS.md D61). By default the password is temporary: at first sign-in the
+ * employee must replace it before she can do anything else. The password itself is never
+ * stored, logged or audited — only its Argon2 hash. `actor` is null only for the server-side
+ * script that creates the first owner account (scripts/create-account.ts).
+ */
+export async function createAccountWithPassword(actor: Actor | null, employeeId: string, usernameInput: unknown, passwordInput: unknown, requireChange: boolean) {
+  if (actor) authorize(actor, 'accounts.manage')
+  const username = usernameSchema.safeParse(usernameInput)
+  if (!username.success) throw new ValidationError('validation_failed', { username: 'username_invalid' })
+  const passwordHash = await hashPassword(validateNewPassword(passwordInput))
+
+  return getDb().transaction(async (tx) => {
+    const [emp] = await tx.select().from(employees).where(eq(employees.id, employeeId)).for('update')
+    if (!emp) throw new NotFoundError()
+    if (emp.status !== 'active') throw new ValidationError('employee_not_active')
+    const [existing] = await tx.select({ id: users.id }).from(users).where(eq(users.employeeId, employeeId)).limit(1)
+    if (existing) throw new ValidationError('account_exists')
+    const [taken] = await tx.select({ id: users.id }).from(users).where(eq(users.username, username.data)).limit(1)
+    if (taken) throw new ValidationError('validation_failed', { username: 'username_taken' })
+    const now = new Date()
+    const [user] = await tx
+      .insert(users)
+      .values({ employeeId, username: username.data, passwordHash, locale: defaultLocaleForRole(emp.role), status: 'active', mustChangePassword: requireChange, passwordChangedAt: now })
+      .returning()
+    await writeAudit(tx, {
+      actorUserId: actor?.userId ?? null,
+      action: 'account.create',
+      entityType: 'user',
+      entityId: user!.id,
+      after: { employeeId, username: user!.username, locale: user!.locale, passwordSetByManagement: true, mustChangePassword: requireChange },
+    })
+    return { userId: user!.id }
+  })
+}
+
+/**
+ * Management sets a new password (forgotten password). Ends all of the employee's sessions,
+ * clears a lock-out and revokes unused setup links.
+ */
+export async function setPasswordByManagement(actor: Actor | null, userId: string, passwordInput: unknown, requireChange: boolean) {
+  if (actor) authorize(actor, 'accounts.manage')
+  const passwordHash = await hashPassword(validateNewPassword(passwordInput))
+  await getDb().transaction(async (tx) => {
+    const [user] = await tx.select().from(users).where(eq(users.id, userId)).for('update')
+    if (!user) throw new NotFoundError()
+    const now = new Date()
+    await tx
+      .update(users)
+      .set({
+        passwordHash,
+        mustChangePassword: requireChange,
+        passwordChangedAt: now,
+        failedLoginCount: 0,
+        lockedUntil: null,
+        status: user.status === 'suspended' ? 'suspended' : 'active',
+        updatedAt: now,
+      })
+      .where(eq(users.id, userId))
+    await tx
+      .update(accountInvites)
+      .set({ revokedAt: now })
+      .where(and(eq(accountInvites.userId, userId), isNull(accountInvites.usedAt), isNull(accountInvites.revokedAt)))
+    await writeAudit(tx, { actorUserId: actor?.userId ?? null, action: 'account.password_set_by_manager', entityType: 'user', entityId: userId, after: { mustChangePassword: requireChange } })
+  })
+  await deleteAllSessionsForUser(userId)
 }

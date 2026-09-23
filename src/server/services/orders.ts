@@ -32,6 +32,7 @@ import { isDayOff } from '@/domain/trips'
 import { syncLegsForVisit } from './trip-sync'
 import { employeesOffOn, offCalendar } from './time-off'
 import { orderBalance, syncCommissions } from './commissions'
+import { syncMessageTasks } from './messages'
 import { parseWith, pgErrorCode } from './validation'
 
 // ─────────────────────────────── Input schema ───────────────────────────────
@@ -520,6 +521,8 @@ export async function saveOrder(actor: Actor, orderId: string | null, rawInput: 
         entityId: order.id,
         after: { reference: order.reference, servicesTotalHalalas: plan.servicesTotal, deliveryFeeHalalas: plan.deliveryFee, grandTotalHalalas: plan.grandTotal, vipAtBooking: plan.vipAtBooking },
       })
+      // Booking confirmation + a reminder three hours before each scheduled visit (spec §13).
+      if (opts.confirm) await syncMessageTasks(tx, order.id)
       return { id: order.id, reference: order.reference, status: order.status }
     })
   } catch (err) {
@@ -593,6 +596,8 @@ export async function rescheduleVisit(actor: Actor, visitId: string, raw: unknow
       // Driving legs keep their travel estimate and move with the visit (may raise a driver conflict).
       await syncLegsForVisit(tx, visitId)
       await refreshOrderStatus(tx, o.id)
+      // The old reminder is cancelled and a new one prepared for the new time.
+      await syncMessageTasks(tx, o.id)
       await writeAudit(tx, {
         actorUserId: actor.userId,
         action: v.startsAt ? 'visit.reschedule' : 'visit.schedule',
@@ -641,6 +646,7 @@ export async function completeVisit(actor: Actor, visitId: string) {
     await tx.update(visits).set({ status: 'completed', completedAt: new Date(), updatedAt: new Date() }).where(eq(visits.id, visitId))
     await refreshOrderStatus(tx, o.id)
     await syncCommissions(tx, o.id)
+    await syncMessageTasks(tx, o.id)
     await writeAudit(tx, { actorUserId: actor.userId, action: 'visit.complete', entityType: 'order', entityId: o.id, after: { visit: v.sequence } })
   })
 }
@@ -661,6 +667,7 @@ export async function markVisitPendingReview(actor: Actor, visitId: string, reas
     await tx.update(visitSpecialists).set({ blocking: false }).where(eq(visitSpecialists.visitId, visitId))
     await syncLegsForVisit(tx, visitId)
     await refreshOrderStatus(tx, o.id)
+    await syncMessageTasks(tx, o.id)
     await writeAudit(tx, { actorUserId: actor.userId, action: 'visit.pending_review', entityType: 'order', entityId: o.id, after: { visit: v.sequence }, reason: why })
   })
 }

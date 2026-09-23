@@ -7,10 +7,16 @@ import { useState } from 'react'
 export interface NavItem {
   href: string
   label: string
-  icon: 'home' | 'staff' | 'audit' | 'account' | 'customers' | 'orders' | 'catalog' | 'settings' | 'schedule' | 'calendar' | 'trips' | 'teams' | 'reports' | 'cash' | 'commissions' | 'expenses' | 'payroll'
+  icon: 'home' | 'staff' | 'audit' | 'account' | 'customers' | 'orders' | 'catalog' | 'settings' | 'schedule' | 'calendar' | 'trips' | 'teams' | 'reports' | 'cash' | 'commissions' | 'expenses' | 'payroll' | 'messages'
 }
 
 const icons: Record<NavItem['icon'], React.ReactNode> = {
+  messages: (
+    <>
+      <path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-5 4v-4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" />
+      <path d="M8 10h8M8 13h5" />
+    </>
+  ),
   home: <path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" />,
   staff: (
     <>

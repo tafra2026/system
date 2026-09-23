@@ -13,6 +13,7 @@
     "db:migrate": "tsx --conditions=react-server scripts/migrate.ts",
     "db:seed": "tsx --conditions=react-server scripts/seed.ts",
     "owner:invite": "tsx --conditions=react-server scripts/create-invite.ts",
+    "account:create": "tsx --conditions=react-server scripts/create-account.ts",
     "db:migrate:test": "tsx --conditions=react-server scripts/migrate.ts --test",
     "icons": "tsx scripts/icons.ts",
     "test:unit": "vitest run tests/unit"

@@ -39,6 +39,8 @@ export const PERMISSIONS = [
   'expenses.manage',
   'payroll.manage',
   'reports.export',
+  // Messages (phase 5)
+  'messages.send', // all prepared WhatsApp messages; drivers see only tasks assigned to them
 ] as const
 
 export type Permission = (typeof PERMISSIONS)[number]
@@ -62,6 +64,7 @@ export const ROLE_PERMISSIONS: Record<EmployeeRole, readonly Permission[]> = {
     'sales.read',
     'payments.links',
     'commissions.read.own',
+    'messages.send',
   ],
   specialist: ['schedule.read.own', 'team.read.own', 'payments.record_cash_pos', 'commissions.read.own'],
   driver: ['schedule.read.own', 'team.read.own'],

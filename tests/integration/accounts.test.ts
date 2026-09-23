@@ -3,8 +3,9 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { actorFromSessionToken } from '@/server/auth/sessions'
 import { closeDb, getDb } from '@/server/db'
 import { auditLog, users } from '@/server/db/schema'
-import { createAccount, reissueInvite, setAccountSuspended } from '@/server/services/accounts'
-import { completeSetup, inspectInvite, login } from '@/server/services/auth'
+import { createAccount, createAccountWithPassword, reissueInvite, setAccountSuspended, setPasswordByManagement } from '@/server/services/accounts'
+import { changePassword, completeSetup, inspectInvite, login } from '@/server/services/auth'
+import { ForbiddenError } from '@/server/authz/errors'
 import { createEmployee, setEmployeeStatus } from '@/server/services/staff'
 import { makeStaff, resetDb } from '../support/db'
 
@@ -102,5 +103,54 @@ describe('accounts are activated only through a one-time link', () => {
     await expect(createAccount(owner.actor, b.id, 'same')).rejects.toMatchObject({ fieldErrors: { username: 'username_taken' } })
     await expect(createAccount(owner.actor, b.id, 'no spaces')).rejects.toMatchObject({ fieldErrors: { username: 'username_invalid' } })
     await expect(createAccount(owner.actor, a.id, 'other')).rejects.toMatchObject({ code: 'account_exists' })
+  })
+})
+
+describe('management may set the username and password itself (D61)', () => {
+  it('temporary password: signs in, but nothing works until she picks her own', async () => {
+    const owner = await makeStaff('owner')
+    const emp = await createEmployee(owner.actor, { fullName: 'ضحى', role: 'admin_manager' })
+    await createAccountWithPassword(owner.actor, emp.id, 'Doha', 'temporary-pass-123', true)
+
+    const first = await login('doha', 'temporary-pass-123')
+    expect(first.ok && first.mustChangePassword).toBe(true)
+    if (!first.ok) return
+    expect(await actorFromSessionToken(first.token)).toBeNull() // no page, action or API
+    const pending = await actorFromSessionToken(first.token, { allowPendingPasswordChange: true })
+    expect(pending?.role).toBe('admin_manager')
+
+    await expect(changePassword(pending!, 'temporary-pass-123', 'temporary-pass-123', first.token)).rejects.toMatchObject({ fieldErrors: { newPassword: 'password_same' } })
+    await changePassword(pending!, 'temporary-pass-123', 'her-own-private-pass', first.token)
+    expect((await actorFromSessionToken(first.token))?.role).toBe('admin_manager')
+    expect((await login('doha', 'temporary-pass-123')).ok).toBe(false)
+
+    // The password never reaches the audit log.
+    const logs = await getDb().select().from(auditLog)
+    expect(JSON.stringify(logs)).not.toContain('temporary-pass-123')
+    expect(JSON.stringify(logs)).not.toContain('her-own-private-pass')
+  })
+
+  it('without the change requirement the account works immediately; reset ends old sessions', async () => {
+    const owner = await makeStaff('owner')
+    const emp = await createEmployee(owner.actor, { fullName: 'سائق', role: 'driver' })
+    const { userId } = await createAccountWithPassword(owner.actor, emp.id, 'driver1', 'driver-password-1', false)
+    const s = await login('driver1', 'driver-password-1')
+    expect(s.ok && !s.mustChangePassword).toBe(true)
+    if (!s.ok) return
+    expect(await actorFromSessionToken(s.token)).not.toBeNull()
+
+    await setPasswordByManagement(owner.actor, userId, 'driver-password-2', false)
+    expect(await actorFromSessionToken(s.token)).toBeNull()
+    expect((await login('driver1', 'driver-password-1')).ok).toBe(false)
+    expect((await login('driver1', 'driver-password-2')).ok).toBe(true)
+  })
+
+  it('only account managers can do it, and weak passwords are refused', async () => {
+    const owner = await makeStaff('owner')
+    const mod = await makeStaff('moderator')
+    const emp = await createEmployee(owner.actor, { fullName: 'أخصائية', role: 'specialist' })
+    await expect(createAccountWithPassword(mod.actor, emp.id, 'spec1', 'long-enough-pass', true)).rejects.toBeInstanceOf(ForbiddenError)
+    await expect(createAccountWithPassword(owner.actor, emp.id, 'spec1', 'short', true)).rejects.toMatchObject({ fieldErrors: { password: 'password_too_short' } })
+    await expect(setPasswordByManagement(mod.actor, mod.user.id, 'long-enough-pass', false)).rejects.toBeInstanceOf(ForbiddenError)
   })
 })

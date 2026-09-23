@@ -5,7 +5,8 @@ import { Field, FormStatus, inputClass, SubmitButton, useFieldErrors } from '@/c
 import { useI18n } from '@/components/i18n-provider'
 import { Badge } from '@/components/ui'
 import type { ActionState } from '@/server/actions'
-import { setBufferAction, setDaysOffAction, setStartPointAction, setVipPackagesAction } from './actions'
+import { setBufferAction, setDaysOffAction, setMessageOptionsAction, setMessageTemplatesAction, setStartPointAction, setVipPackagesAction } from './actions'
+import { DEFAULT_MESSAGE_TEMPLATES, MESSAGE_KINDS, MESSAGE_PLACEHOLDERS, type MessageKind, type MessageLocale } from '@/domain/messages'
 
 const initial = { ok: false } as ActionState<never>
 
@@ -86,6 +87,64 @@ export function DaysOffForm({ weekly, dates }: { weekly: number[]; dates: string
       <Field label={t('settings.specificDaysOff')} name="dates" hint={t('settings.specificDaysOffHint')} error={fieldError('dates')}>
         {(p) => <textarea {...p} defaultValue={dates.join('\n')} className={`${inputClass} min-h-24 py-2`} dir="ltr" />}
       </Field>
+      <SubmitButton variant="secondary">{t('common.save')}</SubmitButton>
+    </form>
+  )
+}
+
+export function MessageTemplatesForm({ custom }: { custom: Partial<Record<MessageKind, Partial<Record<MessageLocale, string>>>> }) {
+  const { t } = useI18n()
+  const [state, action] = useActionState(setMessageTemplatesAction, initial)
+  const fieldError = useFieldErrors(state)
+  return (
+    <form action={action} className="flex flex-col gap-4">
+      <p className="text-xs text-muted">
+        {t('settings.templatesHint')} <span className="ltr-data">{MESSAGE_PLACEHOLDERS.map((p) => `{${p}}`).join(' ')}</span>
+      </p>
+      {MESSAGE_KINDS.map((kind) => (
+        <fieldset key={kind} className="flex flex-col gap-2 rounded-xl border border-line p-3">
+          <legend className="px-1 text-sm font-semibold text-ink">{t(`messages.kinds.${kind}`)}</legend>
+          {(['ar', 'en'] as const).map((loc) => (
+            <Field key={loc} label={loc === 'ar' ? 'العربية' : 'English'} name={`${kind}.${loc}`} error={fieldError(`${kind}.${loc}`)}>
+              {(p) => (
+                <textarea
+                  {...p}
+                  rows={6}
+                  lang={loc}
+                  dir={loc === 'ar' ? 'rtl' : 'ltr'}
+                  maxLength={2000}
+                  defaultValue={custom[kind]?.[loc] ?? DEFAULT_MESSAGE_TEMPLATES[kind][loc]}
+                  className={inputClass}
+                />
+              )}
+            </Field>
+          ))}
+        </fieldset>
+      ))}
+      <FormStatus state={state} successText={t('common.saved')} />
+      <SubmitButton>{t('common.save')}</SubmitButton>
+    </form>
+  )
+}
+
+export function MessageOptionsForm({ reviewLink, sender }: { reviewLink: string | null; sender: 'driver' | 'moderator' }) {
+  const { t } = useI18n()
+  const [state, action] = useActionState(setMessageOptionsAction, initial)
+  const fieldError = useFieldErrors(state)
+  return (
+    <form action={action} className="flex flex-col gap-3">
+      <Field label={t('settings.reviewLink')} name="reviewLink" hint={t('settings.reviewLinkHint')} error={fieldError('review_link')}>
+        {(p) => <input {...p} type="url" defaultValue={reviewLink ?? ''} placeholder="https://" className={`${inputClass} ltr-data`} dir="ltr" maxLength={500} />}
+      </Field>
+      <Field label={t('settings.onTheWaySender')} name="onTheWaySender" hint={t('settings.onTheWaySenderHint')}>
+        {(p) => (
+          <select {...p} defaultValue={sender} className={inputClass}>
+            <option value="driver">{t('settings.senderDriver')}</option>
+            <option value="moderator">{t('settings.senderModerator')}</option>
+          </select>
+        )}
+      </Field>
+      <FormStatus state={state} successText={t('common.saved')} />
       <SubmitButton variant="secondary">{t('common.save')}</SubmitButton>
     </form>
   )

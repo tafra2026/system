@@ -20,8 +20,16 @@ export async function createSession(userId: string): Promise<{ token: string; ex
   return { token, expiresAt }
 }
 
-/** Resolve a session token to an active actor, or null. Slides the expiry forward. */
-export async function actorFromSessionToken(token: string | undefined | null): Promise<Actor | null> {
+/**
+ * Resolve a session token to an active actor, or null. Slides the expiry forward.
+ * An account still on a temporary password (set by management) gets NO actor here, so it
+ * cannot use any page, action or API; only the change-password screen passes
+ * `allowPendingPasswordChange` to let the employee choose her own password first.
+ */
+export async function actorFromSessionToken(
+  token: string | undefined | null,
+  opts: { allowPendingPasswordChange?: boolean } = {},
+): Promise<Actor | null> {
   if (!token || token.length > 200) return null
   const db = getDb()
   const id = sha256(token)
@@ -34,6 +42,7 @@ export async function actorFromSessionToken(token: string | undefined | null): P
       username: users.username,
       locale: users.locale,
       userStatus: users.status,
+      mustChangePassword: users.mustChangePassword,
       employeeId: employees.id,
       role: employees.role,
       employeeStatus: employees.status,
@@ -46,6 +55,7 @@ export async function actorFromSessionToken(token: string | undefined | null): P
     .where(and(eq(sessions.id, id), gt(sessions.expiresAt, now)))
     .limit(1)
   if (!row || row.userStatus !== 'active' || row.employeeStatus !== 'active') return null
+  if (row.mustChangePassword && !opts.allowPendingPasswordChange) return null
 
   if (now.getTime() - row.lastSeenAt.getTime() > REFRESH_AFTER_MS) {
     await db

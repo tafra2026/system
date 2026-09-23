@@ -14,6 +14,7 @@ import { NotFoundError } from '@/server/services/errors'
 import { getOrderDetail, listBookableSpecialists, listModerators } from '@/server/services/orders'
 import { AddressPhotoUpload } from '@/components/address-photo-upload'
 import { PaymentsCard } from '@/components/payments-card'
+import { OrderMessagesCard } from '@/components/order-messages-card'
 import { orderBalance } from '@/server/services/commissions'
 import { getDb } from '@/server/db'
 import { BuildingPhoto } from '@/components/building-photo'
@@ -158,6 +159,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
       </div>
 
       <PaymentsCard actor={actor} orderId={order.id} path={`/orders/${order.id}`} />
+      <OrderMessagesCard actor={actor} orderId={order.id} />
 
       <Card title={t('orders.visits')}>
         <div className="flex flex-col gap-3">

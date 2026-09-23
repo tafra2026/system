@@ -8,6 +8,7 @@ import { pagePermission } from '@/server/auth/current'
 import { myTeam } from '@/server/services/teams'
 import { toDriverLegs } from '@/server/services/trip-views'
 import { myTrips } from '@/server/services/trips'
+import { myOnTheWayTasks } from '@/server/services/messages'
 
 export default async function MyTripsPage() {
   const { actor, allowed } = await pagePermission('schedule.read.own')
@@ -15,11 +16,12 @@ export default async function MyTripsPage() {
   if (!allowed || actor.role !== 'driver') return <Forbidden message={t('errors.forbidden')} />
   const today = operationalDateOf(new Date())
   const [current, upcoming, team] = await Promise.all([myTrips(actor, today, today), myTrips(actor, addDays(today, 1), addDays(today, 7)), myTeam(actor)])
+  const onTheWay = await myOnTheWayTasks(actor, current.map((l) => l.visitId))
   return (
     <div className="flex flex-col gap-4">
       <PageHeader title={t('trips.myTitle')} />
       <Card title={t('schedule.today')} subtitle={formatCalendarDate(today, actor.locale)}>
-        <TripsList legs={toDriverLegs(current)} />
+        <TripsList legs={toDriverLegs(current, onTheWay)} />
       </Card>
       <Card title={t('schedule.upcoming')}>
         <TripsList legs={toDriverLegs(upcoming)} />

@@ -46,12 +46,9 @@ npm run lint      # فحص الأنواع TypeScript
 - ملف `.env` مستبعد من Git. لا تُلصق الأسرار في المحادثة أو المستودع.
 - `.env.example` يحتوي أسماء المتغيرات فقط بدون قيم حقيقية.
 
-## النشر (ملخص — التفاصيل في المرحلة 6)
+## النشر على دومين واستضافة
 
-1. خادم Node.js 22 + PostgreSQL 16 مُدار (مع نسخ احتياطي تلقائي).
-2. **HTTPS إلزامي** (ضروري للتثبيت على الجوال والإشعارات).
-3. ضبط المتغيرات: `DATABASE_URL`، `APP_BASE_URL=https://النطاق`، `APP_ENV=production`، `NODE_ENV=production`.
-4. الأوامر: `npm ci && npm run db:migrate && npm run build && npm start`.
+الخطوات كاملة ومبسطة في **`docs/DEPLOY.ar.md`** (خادم واحد + Docker + HTTPS تلقائي + نسخ احتياطي يومي).
 
 ## النسخ الاحتياطي والاستعادة
 

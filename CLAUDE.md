@@ -47,7 +47,8 @@ tests/          unit/ (pure) and integration/ (real Postgres test DB).
 6. **No fake data or fake buttons** in the product UI. Empty states instead of invented stats.
    Test/demo records carry `is_test = true` and are excluded from financial reports.
 7. **No secrets in git.** `.env*` is ignored except `.env.example`. No shared or published passwords;
-   accounts are activated only through one-time, expiring invite links.
+   accounts are created by management with a username + (by default temporary) password, or via
+   one-time, expiring invite links. Passwords are never logged, audited or shown again (D61).
 8. **Never** send real WhatsApp messages, trigger live payments, or call live Tabby/Tamara during tests.
    Any mock must be clearly labelled as a development mock.
 9. Do not log sensitive data (passwords, tokens, salaries, customer phone/address) in technical logs.
@@ -76,4 +77,5 @@ npm run db:generate    # generate SQL migration after editing src/server/db/sche
 npm run db:migrate     # apply migrations to DATABASE_URL
 npm run db:seed        # seed starting employees (idempotent; no login accounts are activated)
 npm run owner:invite   # print a one-time account-setup link for an employee (server access required)
+npm run account:create # create an account (or reset a password) with a hidden password prompt — first owner account
 ```

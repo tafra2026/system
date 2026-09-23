@@ -36,7 +36,7 @@ export function PasswordForm() {
       <Field label={t('account.currentPassword')} name="currentPassword" error={fieldError('currentPassword')}>
         {(p) => <input {...p} type="password" className={inputClass} autoComplete="current-password" required dir="ltr" />}
       </Field>
-      <Field label={t('account.newPassword')} name="newPassword" hint={t('auth.passwordRule')} error={fieldError('password')}>
+      <Field label={t('account.newPassword')} name="newPassword" hint={t('auth.passwordRule')} error={fieldError('newPassword') ?? fieldError('password')}>
         {(p) => <input {...p} type="password" minLength={10} className={inputClass} autoComplete="new-password" required dir="ltr" />}
       </Field>
       <Field label={t('auth.confirmPassword')} name="confirm" error={fieldError('confirm')}>

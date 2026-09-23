@@ -60,6 +60,7 @@ export default async function EmployeePage({ params }: { params: Promise<{ id: s
                     { label: t('staff.username'), value: <span className="ltr-data">{account.username}</span> },
                     { label: t('staff.status'), value: <Badge tone={account.status === 'active' ? 'success' : account.status === 'pending' ? 'warning' : 'danger'}>{t(`accountStatus.${account.status}`)}</Badge> },
                     { label: t('staff.accountLanguage'), value: account.locale === 'ar' ? 'العربية' : 'English' },
+                    ...(account.mustChangePassword ? [{ label: t('staff.password'), value: <Badge tone="warning">{t('staff.temporaryPassword')}</Badge> }] : []),
                     { label: t('staff.lastLogin'), value: account.lastLoginAt ? formatDateTime(account.lastLoginAt, actor.locale) : t('common.never') },
                   ]}
                 />

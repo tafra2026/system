@@ -15,6 +15,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     ...entry(can(actor, 'schedule.read.own') && actor.role === 'specialist', '/schedule', t('nav.schedule'), 'schedule'),
     ...entry(actor.role === 'driver', '/my-trips', t('nav.myTrips'), 'schedule'),
     ...entry(can(actor, 'orders.read.all'), '/orders', t('nav.orders'), 'orders'),
+    ...entry(can(actor, 'messages.send') || actor.role === 'driver', '/messages', t('nav.messages'), 'messages'),
     ...entry(can(actor, 'orders.read.all'), '/calendar', t('nav.calendar'), 'calendar'),
     ...entry(can(actor, 'schedule.manage'), '/trips', t('nav.trips'), 'trips'),
     ...entry(can(actor, 'customers.manage'), '/customers', t('nav.customers'), 'customers'),

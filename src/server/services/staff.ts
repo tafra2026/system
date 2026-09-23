@@ -112,7 +112,7 @@ export async function getEmployee(actor: Actor, id: string) {
   const [emp] = await db.select().from(employees).where(eq(employees.id, id)).limit(1)
   if (!emp) throw new NotFoundError()
   const [account] = await db
-    .select({ id: users.id, username: users.username, status: users.status, locale: users.locale, lastLoginAt: users.lastLoginAt })
+    .select({ id: users.id, username: users.username, status: users.status, locale: users.locale, lastLoginAt: users.lastLoginAt, mustChangePassword: users.mustChangePassword })
     .from(users)
     .where(eq(users.employeeId, id))
     .limit(1)

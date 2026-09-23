@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { parseSarInput } from '@/domain/money'
 import { formString, runAction, type ActionState } from '@/server/actions'
-import { createAccount, INVITE_TTL_HOURS, reissueInvite, setAccountSuspended, setupUrl } from '@/server/services/accounts'
+import { createAccount, createAccountWithPassword, INVITE_TTL_HOURS, reissueInvite, setAccountSuspended, setPasswordByManagement, setupUrl } from '@/server/services/accounts'
 import { addSalaryRecord, changeRole, createEmployee, setEmployeeStatus, updateEmployeeDetails } from '@/server/services/staff'
 import { ValidationError } from '@/server/services/errors'
 
@@ -89,6 +89,31 @@ export async function createAccountAction(employeeId: string, _prev: ActionState
   const result = await runAction(async (actor) => {
     const invite = await createAccount(actor, employeeId, formString(form, 'username'))
     return { url: setupUrl(invite.token), hours: INVITE_TTL_HOURS }
+  })
+  if (result.ok) revalidatePath(`/staff/${employeeId}`)
+  return result
+}
+
+function passwordFromForm(form: FormData): string {
+  const password = formString(form, 'password')
+  if (password !== formString(form, 'confirm')) throw new ValidationError('validation_failed', { confirm: 'passwords_mismatch' })
+  return password
+}
+
+/** Management chooses the username and password itself (D61). */
+export async function createAccountWithPasswordAction(employeeId: string, _prev: ActionState, form: FormData): Promise<ActionState> {
+  const result = await runAction(async (actor) => {
+    await createAccountWithPassword(actor, employeeId, formString(form, 'username'), passwordFromForm(form), form.get('requireChange') === 'on')
+    return undefined
+  })
+  if (result.ok) revalidatePath(`/staff/${employeeId}`)
+  return result
+}
+
+export async function setPasswordAction(employeeId: string, userId: string, _prev: ActionState, form: FormData): Promise<ActionState> {
+  const result = await runAction(async (actor) => {
+    await setPasswordByManagement(actor, userId, passwordFromForm(form), form.get('requireChange') === 'on')
+    return undefined
   })
   if (result.ok) revalidatePath(`/staff/${employeeId}`)
   return result

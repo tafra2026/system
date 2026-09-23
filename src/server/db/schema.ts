@@ -97,6 +97,8 @@ export const users = pgTable(
     failedLoginCount: integer('failed_login_count').notNull().default(0),
     lockedUntil: timestamp('locked_until', { withTimezone: true }),
     passwordChangedAt: timestamp('password_changed_at', { withTimezone: true }),
+    /** Set when management chose a temporary password; the employee must pick her own at first sign-in. */
+    mustChangePassword: boolean('must_change_password').notNull().default(false),
     lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
     ...timestamps,
   },
@@ -889,6 +891,48 @@ export const payrollPayments = pgTable(
   (t) => [check('payroll_payments_amount', sql`${t.amountHalalas} > 0`)],
 )
 
+/**
+ * Prepared WhatsApp messages (spec §13). Created by the server when an order is confirmed,
+ * a visit is (re)scheduled, the driver starts heading out, or the order is completed.
+ * `dedupe_key` is unique among non-cancelled rows so retries never create duplicates;
+ * rescheduling cancels the old reminder and creates a new one. "sent" means a staff member
+ * CONFIRMED sending — it is never proof of delivery or reading.
+ */
+export const messageKind = pgEnum('message_kind', ['booking_confirmation', 'visit_reminder', 'on_the_way', 'review_request'])
+export const messageTaskStatus = pgEnum('message_task_status', ['ready', 'opened', 'sent', 'cancelled'])
+
+export const messageTasks = pgTable(
+  'message_tasks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    kind: messageKind('kind').notNull(),
+    orderId: uuid('order_id')
+      .notNull()
+      .references(() => orders.id, { onDelete: 'cascade' }),
+    visitId: uuid('visit_id').references(() => visits.id, { onDelete: 'cascade' }),
+    dedupeKey: text('dedupe_key').notNull(),
+    /** Shown in the due list from this moment (e.g. three hours before the visit). */
+    dueAt: timestamp('due_at', { withTimezone: true }).notNull(),
+    status: messageTaskStatus('status').notNull().default('ready'),
+    /** Who should send it (e.g. the driver for "on the way"); null = the operations team. */
+    assigneeEmployeeId: uuid('assignee_employee_id').references(() => employees.id, { onDelete: 'set null' }),
+    openedAt: timestamp('opened_at', { withTimezone: true }),
+    openedByUserId: uuid('opened_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    sentConfirmedAt: timestamp('sent_confirmed_at', { withTimezone: true }),
+    sentConfirmedByUserId: uuid('sent_confirmed_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancelReason: text('cancel_reason'),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('message_tasks_dedupe_uq').on(t.dedupeKey).where(sql`${t.status} <> 'cancelled'`),
+    index('message_tasks_status_due_idx').on(t.status, t.dueAt),
+    index('message_tasks_order_idx').on(t.orderId),
+    index('message_tasks_assignee_idx').on(t.assigneeEmployeeId),
+    check('message_tasks_visit_required', sql`${t.kind} IN ('booking_confirmation', 'review_request') OR ${t.visitId} IS NOT NULL`),
+  ],
+)
+
 export type Employee = typeof employees.$inferSelect
 export type User = typeof users.$inferSelect
 export type SalaryRecord = typeof salaryRecords.$inferSelect
@@ -901,3 +945,4 @@ export type CustomerAddress = typeof customerAddresses.$inferSelect
 export type Order = typeof orders.$inferSelect
 export type OrderLine = typeof orderLines.$inferSelect
 export type Visit = typeof visits.$inferSelect
+export type MessageTask = typeof messageTasks.$inferSelect

@@ -1,0 +1,72 @@
+# Production stack: app + PostgreSQL 16 + Caddy (automatic HTTPS) + daily backups.
+# All secrets come from the server-only file .env (see docs/DEPLOY.ar.md); never commit it.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pamper
+      POSTGRES_DB: pamper
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U pamper -d pamper']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://pamper:${POSTGRES_PASSWORD}@db:5432/pamper
+      APP_BASE_URL: https://${DOMAIN:?set DOMAIN in .env}
+      APP_ENV: production
+      NODE_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+  # One compressed dump per day in ./backups, kept for 30 days. Copy them off the server too.
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./backups:/backups
+    entrypoint:
+      - sh
+      - -c
+      - |
+        while true; do
+          pg_dump -h db -U pamper -Fc pamper > /backups/pamper-$$(date +%Y%m%d-%H%M).dump && echo "backup ok"
+          find /backups -name 'pamper-*.dump' -mtime +30 -delete
+          sleep 86400
+        done
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

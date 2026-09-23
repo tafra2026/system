@@ -13,5 +13,5 @@ export async function loginAction(_prev: ActionState, form: FormData): Promise<A
   const store = await cookies()
   store.set(SESSION_COOKIE, result.token, sessionCookieOptions(result.expiresAt))
   store.delete(LOCALE_COOKIE)
-  redirect('/')
+  redirect(result.mustChangePassword ? '/change-password' : '/')
 }

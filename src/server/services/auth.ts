@@ -20,7 +20,7 @@ export function validateNewPassword(password: unknown): string {
   return password
 }
 
-export type LoginResult = { ok: true; token: string; expiresAt: Date; locale: 'ar' | 'en' } | { ok: false; code: 'invalid_credentials' | 'account_locked' }
+export type LoginResult = { ok: true; token: string; expiresAt: Date; locale: 'ar' | 'en'; mustChangePassword: boolean } | { ok: false; code: 'invalid_credentials' | 'account_locked' }
 
 export async function login(usernameInput: unknown, passwordInput: unknown): Promise<LoginResult> {
   const username = typeof usernameInput === 'string' ? usernameInput.trim().toLowerCase() : ''
@@ -59,7 +59,7 @@ export async function login(usernameInput: unknown, passwordInput: unknown): Pro
 
   await db.update(users).set({ failedLoginCount: 0, lockedUntil: null, lastLoginAt: now }).where(eq(users.id, user.id))
   const session = await createSession(user.id)
-  return { ok: true, ...session, locale: user.locale }
+  return { ok: true, ...session, locale: user.locale, mustChangePassword: user.mustChangePassword }
 }
 
 /** Look up a setup link without consuming it (for rendering the setup page). */
@@ -114,6 +114,7 @@ export async function completeSetup(token: string, passwordInput: unknown, local
         passwordHash,
         status: user!.status === 'suspended' ? 'suspended' : 'active',
         passwordChangedAt: now,
+        mustChangePassword: false,
         failedLoginCount: 0,
         lockedUntil: null,
         ...(locale.success ? { locale: locale.data } : {}),
@@ -134,9 +135,10 @@ export async function changePassword(actor: Actor, currentPassword: unknown, new
   if (!user?.passwordHash || typeof currentPassword !== 'string' || !(await verifyPassword(user.passwordHash, currentPassword))) {
     throw new ValidationError('validation_failed', { currentPassword: 'password_wrong' })
   }
+  if (await verifyPassword(user.passwordHash, next)) throw new ValidationError('validation_failed', { newPassword: 'password_same' })
   const passwordHash = await hashPassword(next)
   await db.transaction(async (tx) => {
-    await tx.update(users).set({ passwordHash, passwordChangedAt: new Date(), updatedAt: new Date() }).where(eq(users.id, actor.userId))
+    await tx.update(users).set({ passwordHash, passwordChangedAt: new Date(), mustChangePassword: false, updatedAt: new Date() }).where(eq(users.id, actor.userId))
     await writeAudit(tx, { actorUserId: actor.userId, action: 'account.password_changed', entityType: 'user', entityId: actor.userId })
   })
   await deleteAllSessionsForUser(actor.userId, keepToken)

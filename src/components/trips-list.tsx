@@ -6,6 +6,7 @@ import { FormStatus, SubmitButton } from './form'
 import { useI18n } from './i18n-provider'
 import { Badge, EmptyState } from './ui'
 import { BuildingPhoto } from './building-photo'
+import { MessageTaskActions } from './message-task'
 import { formatTime } from '@/i18n/format'
 import type { ActionState } from '@/server/actions'
 
@@ -20,6 +21,8 @@ export interface DriverLeg {
   destination: { district: string; addressLine: string | null; mapUrl: string | null; photoUrl: string | null } | null
   origin: { label: string; mapUrl: string | null }
   specialists: string[]
+  /** "On the way" WhatsApp message assigned to this driver, once she started heading out. */
+  messageTask: { id: string; status: 'ready' | 'opened' | 'sent' | 'cancelled' } | null
 }
 
 function StartButton({ legId }: { legId: string }) {
@@ -69,6 +72,12 @@ export function TripsList({ legs }: { legs: DriverLeg[] }) {
             )}
             {l.kind === 'dropoff' && (l.startedAt ? <span className="text-sm text-success">{t('trips.startedAt', { time: formatTime(new Date(l.startedAt), locale) })}</span> : <StartButton legId={l.legId} />)}
           </div>
+          {l.messageTask && (
+            <div className="mt-2 flex flex-col gap-1">
+              <p className="text-sm font-semibold text-ink">{l.messageTask.status === 'sent' ? t('messages.onTheWaySent') : t('messages.kinds.on_the_way')}</p>
+              <MessageTaskActions taskId={l.messageTask.id} status={l.messageTask.status} canDismiss={false} />
+            </div>
+          )}
         </li>
       ))}
       <li className="text-xs text-muted">{t('trips.estimateNote')}</li>

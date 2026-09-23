@@ -16,6 +16,7 @@ import { myTrips } from '@/server/services/trips'
 import { myCustody } from '@/server/services/payments'
 import { dashboardFigures } from '@/server/services/reports'
 import { Figures } from '@/components/figures'
+import { countDueMessages, myOnTheWayTasks } from '@/server/services/messages'
 
 export default async function DashboardPage() {
   const actor = await requireActor()
@@ -29,6 +30,8 @@ export default async function DashboardPage() {
   const driverLegs = actor.role === 'driver' ? await myTrips(actor, opDate, opDate) : null
   const custody = actor.role === 'specialist' ? await myCustody(actor) : null
   const figures = can(actor, 'sales.read') ? await dashboardFigures(actor) : null
+  const onTheWay = driverLegs ? await myOnTheWayTasks(actor, driverLegs.map((l) => l.visitId)) : undefined
+  const dueMessages = can(actor, 'messages.send') || actor.role === 'driver' ? await countDueMessages(actor) : 0
 
   return (
     <div className="flex flex-col gap-4">
@@ -62,6 +65,12 @@ export default async function DashboardPage() {
         </Card>
       )}
 
+      {dueMessages > 0 && (
+        <Card title={t('messages.dueCardTitle')} actions={<ButtonLink href="/messages">{t('messages.openList')}</ButtonLink>}>
+          <p className="text-sm text-ink">{t('messages.dueCount', { count: dueMessages })}</p>
+        </Card>
+      )}
+
       {custody && custody.totalHalalas > 0 && (
         <Card title={t('cash.myCustody')} subtitle={t('cash.myCustodyHint')}>
           <p className="text-xl font-bold text-brand-deep">{formatMoney(custody.totalHalalas, locale)}</p>
@@ -77,7 +86,7 @@ export default async function DashboardPage() {
       )}
       {driverLegs && (
         <Card title={t('dashboard.tripsTitle')} actions={<ButtonLink href="/my-trips" variant="secondary">{t('schedule.upcoming')}</ButtonLink>}>
-          <TripsList legs={toDriverLegs(driverLegs)} />
+          <TripsList legs={toDriverLegs(driverLegs, onTheWay)} />
         </Card>
       )}
       {todays && (

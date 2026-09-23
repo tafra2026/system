@@ -4,7 +4,7 @@ import { createTranslator } from '@/i18n'
 import { pagePermission } from '@/server/auth/current'
 import { mapsConfigured } from '@/server/integrations/google-routes'
 import { getAllSettings } from '@/server/services/settings'
-import { BufferForm, DaysOffForm, StartPointForm, VipPackagesForm } from './settings-forms'
+import { BufferForm, DaysOffForm, MessageOptionsForm, MessageTemplatesForm, StartPointForm, VipPackagesForm } from './settings-forms'
 
 export default async function SettingsPage() {
   const { actor, allowed } = await pagePermission('settings.manage')
@@ -26,6 +26,12 @@ export default async function SettingsPage() {
       </Card>
       <Card title={t('settings.daysOff')}>
         <DaysOffForm weekly={s.weekly_days_off} dates={s.days_off} />
+      </Card>
+      <Card title={t('settings.messagesTitle')} subtitle={t('settings.messagesHint')}>
+        <MessageOptionsForm reviewLink={s.review_link} sender={s.on_the_way_sender} />
+      </Card>
+      <Card title={t('settings.templatesTitle')}>
+        <MessageTemplatesForm custom={s.message_templates} />
       </Card>
       <Card title={t('settings.mapsStatus')}>
         <Badge tone={maps ? 'success' : 'warning'}>{maps ? t('settings.mapsOn') : t('settings.mapsOff')}</Badge>
