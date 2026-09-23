@@ -42,7 +42,7 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
                   {s.account ? (
                     <Badge tone={accountTone[s.account.status]}>{t(`accountStatus.${s.account.status}`)}</Badge>
                   ) : (
-                    <Badge>{t('common.none')}</Badge>
+                    <Badge>{t('staff.noAccountShort')}</Badge>
                   )}
                   {'currentSalaryHalalas' in s && (
                     <span className="min-w-28 text-end text-sm font-medium text-ink">

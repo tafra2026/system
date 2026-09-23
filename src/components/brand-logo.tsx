@@ -12,8 +12,9 @@ function findLogo(): string | null {
 
 /**
  * The official logo, kept at its original proportions (fixed height, auto width).
- * Until the file is added to public/brand/, the plain brand name is shown instead —
- * deliberately NOT a re-drawn logo (see docs/DESIGN.md).
+ * The supplied logo is cream (#FEF3E8) on transparent, so it must sit on the brand
+ * colour (#AA8077) — callers place it inside a `bg-brand` area (see docs/DESIGN.md).
+ * If the file is missing, the plain brand name is shown instead — never a re-drawn logo.
  */
 export function BrandLogo({ height = 36, label }: { height?: number; label: string }) {
   const src = findLogo()
@@ -22,7 +23,7 @@ export function BrandLogo({ height = 36, label }: { height?: number; label: stri
     return <img src={src} alt={label} style={{ height, width: 'auto' }} />
   }
   return (
-    <span className="ltr-data text-lg font-semibold tracking-wide text-brand-deep" style={{ lineHeight: `${height}px` }}>
+    <span className="ltr-data text-lg font-semibold tracking-wide text-cream" style={{ lineHeight: `${height}px` }}>
       {label}
     </span>
   )

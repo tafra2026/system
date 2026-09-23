@@ -139,6 +139,7 @@ const en: Dictionary = {
     activate: 'Reactivate',
     statusHint: 'Employees with records are never deleted. Suspending blocks sign-in; archiving hides them from lists and keeps their history.',
     account: 'Sign-in account',
+    noAccountShort: 'No account',
     noAccount: 'No sign-in account. An employee record does not enable sign-in by itself.',
     createAccount: 'Create account and issue activation link',
     username: 'Username',

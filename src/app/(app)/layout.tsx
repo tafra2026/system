@@ -1,6 +1,5 @@
 import { BrandLogo } from '@/components/brand-logo'
 import { BottomNav, SideNav, type NavItem } from '@/components/shell/nav'
-import { Badge } from '@/components/ui'
 import { createTranslator } from '@/i18n'
 import { can } from '@/server/authz/actor'
 import { requireActor } from '@/server/auth/current'
@@ -21,16 +20,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:start-2 focus:top-2 focus:rounded-lg focus:bg-surface focus:p-2">
         {t('app.skipToContent')}
       </a>
-      <header className="border-b border-line bg-cream/90 backdrop-blur">
+      {/* Official combination: cream logo on the brand colour. Text sits in a light chip for contrast. */}
+      <header className="bg-brand pt-[env(safe-area-inset-top)]">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
-          <BrandLogo label={t('app.name')} height={34} />
-          <div className="flex items-center gap-3">
+          <BrandLogo label={t('app.fullName')} height={36} />
+          <div className="flex items-center gap-1 rounded-2xl bg-cream py-1 ps-3 pe-1">
             <div className="text-end leading-tight">
-              <p className="text-sm font-semibold text-ink">{actor.displayName}</p>
-              <Badge tone="brand">{t(`roles.${actor.role}`)}</Badge>
+              <p className="max-w-24 truncate text-sm font-semibold text-ink sm:max-w-none">{actor.displayName}</p>
+              <p className="text-xs text-muted">{t(`roles.${actor.role}`)}</p>
             </div>
             <form action={logoutAction}>
-              <button type="submit" className="min-h-11 rounded-xl px-3 text-sm font-medium text-brand-deep hover:bg-brand-soft">
+              <button type="submit" className="min-h-11 whitespace-nowrap rounded-xl px-2.5 text-sm font-medium text-brand-deep hover:bg-brand-soft">
                 {t('nav.logout')}
               </button>
             </form>

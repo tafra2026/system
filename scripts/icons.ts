@@ -1,7 +1,7 @@
 /**
  * Generates PWA icons into public/icons.
  * - If the official logo exists at public/brand/logo.(svg|png|webp), it is placed, unchanged
- *   and at its original proportions, on the cream background.
+ *   and at its original proportions, on the brand colour (the logo itself is cream).
  * - Otherwise a TEMPORARY abstract placeholder (no letters) in the brand colours is produced.
  */
 import fs from 'node:fs'
@@ -28,8 +28,8 @@ async function render(size: number, padding: number, file: string) {
   let image: ReturnType<typeof sharp>
   if (logo) {
     const inner = Math.round(size * (1 - padding * 2))
-    const resized = await sharp(logo).resize(inner, inner, { fit: 'contain', background: CREAM }).png().toBuffer()
-    image = sharp({ create: { width: size, height: size, channels: 4, background: CREAM } }).composite([{ input: resized, gravity: 'center' }])
+    const resized = await sharp(logo).resize(inner, inner, { fit: 'inside' }).png().toBuffer()
+    image = sharp({ create: { width: size, height: size, channels: 4, background: BRAND } }).composite([{ input: resized, gravity: 'center' }])
   } else {
     image = sharp(placeholderSvg(size, padding))
   }

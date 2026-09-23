@@ -8,9 +8,11 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
   const t = createTranslator(locale)
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-4 py-8">
-      <div className="mb-8 flex items-center justify-between">
-        <BrandLogo label={t('app.name')} height={40} />
+      <div className="mb-4 flex justify-end">
         <LanguageSwitch />
+      </div>
+      <div className="mb-6 flex items-center justify-center rounded-[var(--radius-card)] bg-brand px-6 py-10">
+        <BrandLogo label={t('app.fullName')} height={64} />
       </div>
       {children}
     </main>
