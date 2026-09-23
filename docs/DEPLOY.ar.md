@@ -28,62 +28,66 @@
 
 ## 3) تجهيز الخادم (مرة واحدة)
 
-ادخل للخادم عبر SSH ثم:
+ادخل للخادم عبر SSH (من الكمبيوتر: `ssh root@عنوان_IP`) ثم نفّذ:
 
 ```bash
-# تثبيت Docker
 curl -fsSL https://get.docker.com | sh
-
-# جدار الحماية: SSH و HTTP و HTTPS فقط
 ufw allow 22 && ufw allow 80 && ufw allow 443 && ufw --force enable
-
-# تنزيل النظام (المستودع خاص: استخدم Deploy Key أو Token للقراءة فقط من GitHub)
 git clone https://github.com/tafra2026/system.git /opt/pamper
 cd /opt/pamper
 ```
+
+- المستودع خاص، فعند `git clone` سيطلب:
+  - **Username:** اسم حسابك على GitHub.
+  - **Password:** ليس كلمة مرور GitHub، بل **Token** تنشئه من GitHub: Settings ← Developer settings ← Fine-grained tokens ← Generate، اختر المستودع `tafra2026/system` وصلاحية **Contents: Read-only**.
 
 ## 4) الإعدادات السرية (على الخادم فقط)
 
 ```bash
 cp deploy/env.production.example .env
-openssl rand -base64 32      # انسخ الناتج ككلمة مرور قاعدة البيانات
+openssl rand -base64 32
 nano .env
 ```
 
-املأ:
-- `DOMAIN=app.pamperme.sa` (بدون https)
-- `POSTGRES_PASSWORD=` الكلمة الطويلة العشوائية من الأمر السابق
-- `GOOGLE_MAPS_API_KEY=` (اختياري، لاحقًا)
-- مفاتيح إشعارات الجوال (مرة واحدة فقط): شغّل الأمر التالي وانسخ الأسطر الثلاثة الناتجة إلى `.env`، واكتب بريدك في `VAPID_SUBJECT`:
-  ```bash
-  docker compose run --rm --no-deps app npm run -s push:keys
-  ```
-  (لا تغيّر هذه المفاتيح بعد ذلك، وإلا سيحتاج كل موظف لتفعيل الإشعارات من جديد.)
+- انسخ الناتج الطويل من الأمر الثاني وضعه بعد `POSTGRES_PASSWORD=`.
+- اكتب الدومين بعد `DOMAIN=` بدون https، مثل `DOMAIN=app.pamperme.sa`.
+- احفظ واخرج من nano: `Ctrl+O` ثم `Enter` ثم `Ctrl+X`.
 
 > ملف `.env` لا يُرفع إلى GitHub ولا يُرسل في المحادثات.
 
-## 5) التشغيل
+## 5) البناء ومفاتيح إشعارات الجوال
 
 ```bash
-docker compose up -d --build
-docker compose ps            # يجب أن تكون كل الخدمات Up
+docker compose build
+docker compose run --rm --no-deps app npm run -s push:keys
 ```
 
-- أول تشغيل يستغرق عدة دقائق.
-- تحديثات قاعدة البيانات تُطبّق تلقائيًا عند كل تشغيل.
-- شهادة HTTPS تصدر تلقائيًا بعد أن يشير الدومين للخادم.
+- البناء يستغرق عدة دقائق في أول مرة.
+- الأمر الثاني يطبع 3 أسطر تبدأ بـ `VAPID_`. افتح `nano .env` واستبدل أسطر `VAPID_` الثلاثة بها، واكتب بريدك مكان `CHANGE_ME@your-domain`.
+- هذه المفاتيح تُولَّد **مرة واحدة فقط**. لا تغيّرها بعد ذلك، وإلا سيحتاج كل موظف لتفعيل الإشعارات من جديد.
 
-## 6) البيانات الأساسية وأول حساب (المالكة)
+## 6) التشغيل
 
 ```bash
-# الموظفون الثمانية والخدمات والباقات ونقطة الانطلاق (آمن للتكرار)
-docker compose exec app npm run db:seed
+docker compose up -d
+docker compose ps
+```
 
-# حساب المالكة: سيطلب كلمة المرور مرتين (لا تظهر أثناء الكتابة)
+- يجب أن تظهر كل الخدمات `Up` أو `running`: `db`، `app`، `worker`، `caddy`، `backup`.
+- تحديثات قاعدة البيانات تُطبّق تلقائيًا.
+- شهادة HTTPS تصدر تلقائيًا خلال دقيقة أو اثنتين بعد أن يشير الدومين للخادم.
+
+## 6-ب) البيانات الأساسية وأول حساب (المالكة)
+
+```bash
+docker compose exec app npm run db:seed
 docker compose exec app npm run account:create -- --role=owner --username=doha
 ```
 
-الآن افتح `https://app.pamperme.sa` وسجّل الدخول.
+- الأمر الأول يضيف الموظفين الثمانية والخدمات والباقات ونقطة الانطلاق، وهو آمن للتكرار.
+- الأمر الثاني يطلب كلمة المرور مرتين، ولا تظهر أثناء الكتابة. هذا طبيعي.
+
+الآن افتح `https://app.pamperme.sa` وسجّل الدخول باسم المستخدم `doha` وكلمة المرور التي كتبتها.
 
 ## 7) حسابات باقي الموظفين (من داخل التطبيق)
 
@@ -112,7 +116,8 @@ docker compose exec app npm run account:create -- --role=owner --username=doha
 ```bash
 cd /opt/pamper
 git pull
-docker compose up -d --build
+docker compose build
+docker compose up -d
 ```
 
 ## 9) النسخ الاحتياطي
@@ -135,6 +140,7 @@ docker compose up -d --build
 |---|---|
 | حالة الخدمات | `docker compose ps` |
 | سجل التطبيق | `docker compose logs -f app` |
+| سجل شهادة HTTPS | `docker compose logs caddy` |
 | سجل الإشعارات والتذكيرات | `docker compose logs -f worker` |
 | إعادة التشغيل | `docker compose restart app` |
 | إيقاف الكل | `docker compose down` (البيانات تبقى) |

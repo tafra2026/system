@@ -18,6 +18,7 @@ services:
 
   app:
     build: .
+    image: pamper-app:latest
     restart: unless-stopped
     env_file: .env
     environment:
@@ -31,7 +32,8 @@ services:
 
   # Background worker: 3-hour reminders and other notifications, Web Push delivery.
   worker:
-    build: .
+    image: pamper-app:latest # same image as the app (built once)
+    pull_policy: never
     restart: unless-stopped
     command: ['npm', 'run', '-s', 'worker']
     env_file: .env
