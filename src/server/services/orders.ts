@@ -31,7 +31,7 @@ import { getDaysOff, getSetting } from './settings'
 import { isDayOff } from '@/domain/trips'
 import { syncLegsForVisit } from './trip-sync'
 import { employeesOffOn, offCalendar } from './time-off'
-import { syncCommissions } from './commissions'
+import { orderBalance, syncCommissions } from './commissions'
 import { parseWith, pgErrorCode } from './validation'
 
 // ─────────────────────────────── Input schema ───────────────────────────────
@@ -943,8 +943,13 @@ export async function mySchedule(actor: Actor, fromDate: string, toDate: string)
     .from(visitSpecialists)
     .innerJoin(employees, eq(employees.id, visitSpecialists.employeeId))
     .where(inArray(visitSpecialists.visitId, visitIds))
+  const balances = new Map<string, number>()
+  for (const id of new Set(rows.map((r) => r.o.id))) balances.set(id, (await orderBalance(db, id)).remaining)
   return rows.map((r) => ({
     visitId: r.v.id,
+    orderId: r.o.id,
+    /** Amount the customer still has to pay (what to collect) — not a price breakdown. */
+    remainingHalalas: balances.get(r.o.id) ?? 0,
     reference: r.o.reference,
     status: r.v.status,
     startsAt: r.v.startsAt!,

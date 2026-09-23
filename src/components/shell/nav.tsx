@@ -2,11 +2,12 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useState } from 'react'
 
 export interface NavItem {
   href: string
   label: string
-  icon: 'home' | 'staff' | 'audit' | 'account' | 'customers' | 'orders' | 'catalog' | 'settings' | 'schedule' | 'calendar' | 'trips' | 'teams'
+  icon: 'home' | 'staff' | 'audit' | 'account' | 'customers' | 'orders' | 'catalog' | 'settings' | 'schedule' | 'calendar' | 'trips' | 'teams' | 'reports' | 'cash' | 'commissions' | 'expenses' | 'payroll'
 }
 
 const icons: Record<NavItem['icon'], React.ReactNode> = {
@@ -73,6 +74,36 @@ const icons: Record<NavItem['icon'], React.ReactNode> = {
       <path d="M2 20c.5-3.3 3-5 6-5s5.5 1.7 6 5M12.5 15.4c1-.3 2.1-.4 3.5-.4 3 0 5.5 1.7 6 5" />
     </>
   ),
+  reports: (
+    <>
+      <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+    </>
+  ),
+  cash: (
+    <>
+      <rect x="2" y="6" width="20" height="12" rx="2" />
+      <circle cx="12" cy="12" r="3" />
+      <path d="M6 9v.01M18 15v.01" />
+    </>
+  ),
+  commissions: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M15 9.5c-.5-1-1.6-1.5-3-1.5-1.7 0-3 .9-3 2s1.3 1.7 3 2 3 .9 3 2-1.3 2-3 2c-1.4 0-2.5-.5-3-1.5M12 6.5V8M12 16v1.5" />
+    </>
+  ),
+  expenses: (
+    <>
+      <path d="M6 3h12v18l-3-2-3 2-3-2-3 2z" />
+      <path d="M9 8h6M9 12h6" />
+    </>
+  ),
+  payroll: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M7 9h4M7 13h10M7 16h6" />
+    </>
+  ),
   schedule: (
     <>
       <circle cx="12" cy="12" r="9" />
@@ -121,29 +152,74 @@ export function SideNav({ items, label }: { items: NavItem[]; label: string }) {
   )
 }
 
-/** Bottom tab bar on phones. */
-export function BottomNav({ items, label }: { items: NavItem[]; label: string }) {
+/** Bottom tab bar on phones: first four sections + "More" for the rest. */
+export function BottomNav({ items, label, moreLabel }: { items: NavItem[]; label: string; moreLabel: string }) {
   const pathname = usePathname()
+  const [open, setOpen] = useState(false)
+  const many = items.length > 5
+  const primary = many ? items.slice(0, 4) : items
+  const moreActive = many && items.slice(4).some((i) => isActive(pathname, i.href))
+  const tab = (item: NavItem) => {
+    const active = isActive(pathname, item.href)
+    return (
+      <li key={item.href} className="flex-1">
+        <Link
+          href={item.href}
+          onClick={() => setOpen(false)}
+          aria-current={active ? 'page' : undefined}
+          className={`flex min-h-14 flex-col items-center justify-center gap-0.5 whitespace-nowrap px-1 text-[11px] font-medium ${active ? 'text-brand-deep' : 'text-muted'}`}
+        >
+          <span className={`rounded-full px-3 py-0.5 ${active ? 'bg-brand-soft' : ''}`}>
+            <Icon name={item.icon} />
+          </span>
+          {item.label}
+        </Link>
+      </li>
+    )
+  }
   return (
     <nav aria-label={label} className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
-      <ul className="mx-auto flex max-w-2xl overflow-x-auto">
-        {items.map((item) => {
-          const active = isActive(pathname, item.href)
-          return (
-            <li key={item.href} className="min-w-[4.5rem] flex-1">
-              <Link
-                href={item.href}
-                aria-current={active ? 'page' : undefined}
-                className={`flex min-h-14 flex-col items-center justify-center gap-0.5 whitespace-nowrap px-1 text-[11px] font-medium ${active ? 'text-brand-deep' : 'text-muted'}`}
-              >
-                <span className={`rounded-full px-3 py-0.5 ${active ? 'bg-brand-soft' : ''}`}>
+      {open && (
+        <ul className="grid max-h-[60dvh] grid-cols-3 gap-1 overflow-y-auto border-b border-line p-2">
+          {items.slice(4).map((item) => {
+            const active = isActive(pathname, item.href)
+            return (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  onClick={() => setOpen(false)}
+                  aria-current={active ? 'page' : undefined}
+                  className={`flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl text-xs font-medium ${active ? 'bg-brand-soft text-brand-deep' : 'text-ink hover:bg-cream'}`}
+                >
                   <Icon name={item.icon} />
-                </span>
-                {item.label}
-              </Link>
-            </li>
-          )
-        })}
+                  {item.label}
+                </Link>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      <ul className="mx-auto flex max-w-2xl">
+        {primary.map(tab)}
+        {many && (
+          <li className="flex-1">
+            <button
+              type="button"
+              aria-expanded={open}
+              onClick={() => setOpen((o) => !o)}
+              className={`flex min-h-14 w-full flex-col items-center justify-center gap-0.5 text-[11px] font-medium ${open || moreActive ? 'text-brand-deep' : 'text-muted'}`}
+            >
+              <span className={`rounded-full px-3 py-0.5 ${open || moreActive ? 'bg-brand-soft' : ''}`}>
+                <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5 fill-current">
+                  <circle cx="5" cy="12" r="1.8" />
+                  <circle cx="12" cy="12" r="1.8" />
+                  <circle cx="19" cy="12" r="1.8" />
+                </svg>
+              </span>
+              {moreLabel}
+            </button>
+          </li>
+        )}
       </ul>
     </nav>
   )

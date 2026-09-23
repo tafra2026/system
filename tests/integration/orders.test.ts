@@ -266,7 +266,9 @@ describe('order permissions', () => {
     const mine = await mySchedule(ctx.s1.actor, '2026-10-01', '2026-10-01')
     expect(mine).toHaveLength(1)
     expect(mine[0]!.items[0]).toMatchObject({ name: 'Swedish massage', mine: true })
-    expect(JSON.stringify(mine)).not.toMatch(/Halalas|price/i)
+    // Only the balance left to collect is shown — never the price breakdown.
+    expect(JSON.stringify(mine)).not.toMatch(/price|servicesTotal|grandTotal|vipDiscount/i)
+    expect(mine[0]!.remainingHalalas).toBe(19600)
     expect(mine[0]!.address?.district).toBe('الروضة')
     expect(await mySchedule(ctx.s2.actor, '2026-10-01', '2026-10-01')).toHaveLength(0)
   })

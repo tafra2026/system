@@ -13,6 +13,9 @@ import Link from 'next/link'
 import { TripsList } from '@/components/trips-list'
 import { toDriverLegs } from '@/server/services/trip-views'
 import { myTrips } from '@/server/services/trips'
+import { myCustody } from '@/server/services/payments'
+import { dashboardFigures } from '@/server/services/reports'
+import { Figures } from '@/components/figures'
 
 export default async function DashboardPage() {
   const actor = await requireActor()
@@ -24,6 +27,8 @@ export default async function DashboardPage() {
   const mine = actor.role === 'specialist' ? await mySchedule(actor, opDate, opDate) : null
   const todays = can(actor, 'orders.read.all') ? await visitsOnOperationalDate(actor, opDate) : null
   const driverLegs = actor.role === 'driver' ? await myTrips(actor, opDate, opDate) : null
+  const custody = actor.role === 'specialist' ? await myCustody(actor) : null
+  const figures = can(actor, 'sales.read') ? await dashboardFigures(actor) : null
 
   return (
     <div className="flex flex-col gap-4">
@@ -56,6 +61,14 @@ export default async function DashboardPage() {
           <p className="text-sm text-muted">{t('dashboard.nextStepsBody')}</p>
         </Card>
       )}
+
+      {custody && custody.totalHalalas > 0 && (
+        <Card title={t('cash.myCustody')} subtitle={t('cash.myCustodyHint')}>
+          <p className="text-xl font-bold text-brand-deep">{formatMoney(custody.totalHalalas, locale)}</p>
+        </Card>
+      )}
+
+      {figures && <Figures data={figures} locale={locale} />}
 
       {mine && (
         <Card title={t('dashboard.scheduleTitle')} actions={<ButtonLink href="/schedule" variant="secondary">{t('schedule.upcoming')}</ButtonLink>}>

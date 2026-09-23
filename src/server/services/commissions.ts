@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { COMMISSION_RULES_V1, moderatorCommission, specialistCommissions, type CommissionRules, type CommissionUnit } from '@/domain/commission'
 import { authorize, can, type Actor } from '../authz/actor'
 import { ForbiddenError } from '../authz/errors'
@@ -92,7 +92,7 @@ export interface CommissionSummary {
 async function summarize(db: Executor, employeeIds: string[]): Promise<CommissionSummary[]> {
   if (!employeeIds.length) return []
   const ledger = await db
-    .select({ employeeId: commissionEntries.employeeId, settled: isNotNull(commissionEntries.payrollItemId), sum: sql<number>`sum(${commissionEntries.amountHalalas})`.mapWith(Number) })
+    .select({ employeeId: commissionEntries.employeeId, settled: sql<boolean>`${commissionEntries.payrollItemId} IS NOT NULL`, sum: sql<number>`sum(${commissionEntries.amountHalalas})`.mapWith(Number) })
     .from(commissionEntries)
     .where(inArray(commissionEntries.employeeId, employeeIds))
     .groupBy(commissionEntries.employeeId, sql`${commissionEntries.payrollItemId} IS NOT NULL`)
@@ -135,7 +135,7 @@ export async function myCommissions(actor: Actor) {
   const db = getDb()
   const [summary] = await summarize(db, [actor.employeeId])
   const entries = await db
-    .select({ id: commissionEntries.id, orderId: commissionEntries.orderId, reference: orders.reference, kind: commissionEntries.kind, amount: commissionEntries.amountHalalas, earnedAt: commissionEntries.earnedAt, reason: commissionEntries.reason, settled: isNotNull(commissionEntries.payrollItemId) })
+    .select({ id: commissionEntries.id, orderId: commissionEntries.orderId, reference: orders.reference, kind: commissionEntries.kind, amount: commissionEntries.amountHalalas, earnedAt: commissionEntries.earnedAt, reason: commissionEntries.reason, settled: sql<boolean>`${commissionEntries.payrollItemId} IS NOT NULL` })
     .from(commissionEntries)
     .leftJoin(orders, eq(orders.id, commissionEntries.orderId))
     .where(eq(commissionEntries.employeeId, actor.employeeId))

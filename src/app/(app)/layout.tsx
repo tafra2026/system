@@ -18,6 +18,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     ...entry(can(actor, 'orders.read.all'), '/calendar', t('nav.calendar'), 'calendar'),
     ...entry(can(actor, 'schedule.manage'), '/trips', t('nav.trips'), 'trips'),
     ...entry(can(actor, 'customers.manage'), '/customers', t('nav.customers'), 'customers'),
+    ...entry(can(actor, 'sales.read'), '/reports', t('nav.reports'), 'reports'),
+    ...entry(can(actor, 'cash.receive_handover'), '/cash', t('nav.cash'), 'cash'),
+    ...entry(can(actor, 'commissions.read.own') || can(actor, 'commissions.read.all'), '/commissions', t('nav.commissions'), 'commissions'),
+    ...entry(can(actor, 'expenses.manage'), '/expenses', t('nav.expenses'), 'expenses'),
+    ...entry(can(actor, 'payroll.manage'), '/payroll', t('nav.payroll'), 'payroll'),
     ...entry(can(actor, 'orders.manage') || can(actor, 'catalog.manage'), '/catalog', t('nav.catalog'), 'catalog'),
     ...entry(can(actor, 'staff.manage'), '/staff', t('nav.staff'), 'staff'),
     ...entry(can(actor, 'staff.manage'), '/teams', t('nav.teams'), 'teams'),
@@ -53,7 +58,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {children}
         </main>
       </div>
-      <BottomNav items={items} label={t('nav.menu')} />
+      <BottomNav items={items} label={t('nav.menu')} moreLabel={t('nav.more')} />
     </div>
   )
 }

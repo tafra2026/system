@@ -13,6 +13,9 @@ import { pagePermission } from '@/server/auth/current'
 import { NotFoundError } from '@/server/services/errors'
 import { getOrderDetail, listBookableSpecialists, listModerators } from '@/server/services/orders'
 import { AddressPhotoUpload } from '@/components/address-photo-upload'
+import { PaymentsCard } from '@/components/payments-card'
+import { orderBalance } from '@/server/services/commissions'
+import { getDb } from '@/server/db'
 import { BuildingPhoto } from '@/components/building-photo'
 import { AdjustPriceForm, AssignItemForm, CompleteVisitButton, DeliveryFeeForm, ModeratorForm, NotesForm, PendingReviewForm, RescheduleForm } from './order-forms'
 
@@ -46,6 +49,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   const specialists = canSchedule ? await listBookableSpecialists(actor) : []
   const moderators = canManage ? await listModerators(actor) : []
   const address = order.addressSnapshot as AddressSnapshot | null
+  const balance = await orderBalance(getDb(), order.id)
   const name = (x: { nameAr: string; nameEn: string }) => (actor.locale === 'en' ? x.nameEn : x.nameAr)
   const localParts = (dt: Date) => {
     const p = riyadhParts(dt)
@@ -136,8 +140,8 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
               [t('orders.servicesTotal'), order.servicesTotalHalalas],
               [t('orders.deliveryFee'), order.deliveryFeeHalalas],
               [t('orders.grandTotal'), order.grandTotalHalalas],
-              [t('orders.paid'), 0],
-              [t('orders.remaining'), order.grandTotalHalalas],
+              [t('orders.paid'), balance.confirmed],
+              [t('orders.remaining'), balance.remaining],
             ].map(([label, value]) => (
               <div key={label as string}>
                 <dt className="text-xs text-muted">{label}</dt>
@@ -145,7 +149,6 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
               </div>
             ))}
           </dl>
-          <p className="mt-2 text-xs text-muted">{t('orders.paymentsLater')}</p>
           {canManage && order.status !== 'completed' && (
             <div className="mt-3">
               <DeliveryFeeForm orderId={order.id} current={toSarString(order.deliveryFeeHalalas)} />
@@ -153,6 +156,8 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
           )}
         </Card>
       </div>
+
+      <PaymentsCard actor={actor} orderId={order.id} path={`/orders/${order.id}`} />
 
       <Card title={t('orders.visits')}>
         <div className="flex flex-col gap-3">

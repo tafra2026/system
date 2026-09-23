@@ -8,6 +8,9 @@ import type { mySchedule } from '@/server/services/orders'
 import { CompleteVisitButton } from '@/app/(app)/orders/[id]/order-forms'
 import { visitStatusTone } from './status-tones'
 import { Badge, EmptyState } from './ui'
+import { RecordPaymentForm } from './payment-forms'
+import { formatMoney } from '@/i18n/format'
+import { toSarString } from '@/domain/money'
 
 type Visit = Awaited<ReturnType<typeof mySchedule>>[number]
 
@@ -108,6 +111,18 @@ export function ScheduleList({ visits, locale, path }: { visits: Visit[]; locale
                 {v.notes}
               </p>
             )}
+            <div className="mt-2 rounded-xl bg-cream/70 p-2 text-sm">
+              {v.remainingHalalas > 0 ? (
+                <>
+                  <p className="mb-2 font-semibold text-ink">
+                    {t('payments.remainingToCollect')}: {formatMoney(v.remainingHalalas, locale)}
+                  </p>
+                  <RecordPaymentForm orderId={v.orderId} path={path} methods={['cash', 'pos']} remainingSar={toSarString(v.remainingHalalas)} compact />
+                </>
+              ) : (
+                <p className="text-success">{t('payments.fullyPaid')}</p>
+              )}
+            </div>
             {v.status === 'scheduled' && (
               <div className="mt-2">
                 <CompleteVisitButton path={path} visitId={v.visitId} label={t('schedule.markDone')} />
