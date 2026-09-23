@@ -52,7 +52,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
               <VipForm id={customer.id} isVip={customer.isVip} />
             </Card>
           )}
-          <Card title={t('customers.history')}>
+          <Card title={t('customers.history')} subtitle={orders.length ? t('customers.historySummary', { count: orders.filter((o) => o.status !== 'draft').length, last: formatDateTime(orders[0]!.createdAt, actor.locale) }) : undefined}>
             {orders.length === 0 ? (
               <EmptyState body={t('customers.noOrders')} />
             ) : (

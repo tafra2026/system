@@ -1,5 +1,6 @@
-import { and, desc, eq, ilike, isNull, or, sql } from 'drizzle-orm'
+import { and, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
+import { normalizeDigits } from '@/domain/money'
 import { normalizePhone } from '@/domain/phone'
 import { coordinatesFromInput, isShortMapsLink } from '../integrations/maps-links'
 import { authorize, type Actor } from '../authz/actor'
@@ -44,18 +45,25 @@ export async function findCustomerByPhone(actor: Actor, phone: string) {
   return c ?? null
 }
 
-export async function searchCustomers(actor: Actor, query: string, limit = 30) {
+/**
+ * Search by name or phone (any common format: 05…, 5…, 9665…, +966…, Arabic digits, or the
+ * last 4+ digits). Also finds customers by their second number. `vipOnly` lists VIP customers.
+ */
+export async function searchCustomers(actor: Actor, query: string, limit = 30, opts: { vipOnly?: boolean } = {}) {
   authorize(actor, 'customers.manage')
-  const q = query.trim()
+  const q = normalizeDigits(query).trim()
   const db = getDb()
+  const vip = opts.vipOnly ? eq(customers.isVip, true) : undefined
   const base = db.select().from(customers)
-  if (!q) return base.orderBy(desc(customers.updatedAt)).limit(limit)
+  if (!q) return base.where(vip).orderBy(desc(customers.updatedAt)).limit(limit)
   const e164 = normalizePhone(q)
-  const digits = q.replace(/\D/g, '')
+  const digits = q.replace(/\D/g, '').replace(/^0+/, '')
   const conditions = [ilike(customers.name, `%${q.replace(/[%_]/g, '')}%`)]
   if (e164) conditions.push(eq(customers.phoneE164, e164), eq(customers.altPhoneE164, e164))
-  if (digits.length >= 4) conditions.push(sql`${customers.phoneE164} LIKE ${'%' + digits.replace(/^0+/, '') + '%'}`)
-  return base.where(or(...conditions)).orderBy(desc(customers.updatedAt)).limit(limit)
+  if (digits.length >= 4) {
+    conditions.push(sql`${customers.phoneE164} LIKE ${'%' + digits + '%'}`, sql`coalesce(${customers.altPhoneE164}, '') LIKE ${'%' + digits + '%'}`)
+  }
+  return base.where(and(or(...conditions), vip)).orderBy(desc(customers.updatedAt)).limit(limit)
 }
 
 export async function createCustomer(actor: Actor, input: Record<string, unknown> & { isVip?: boolean }) {
@@ -173,3 +181,105 @@ export async function getCustomer(actor: Actor, id: string) {
     .orderBy(desc(orders.createdAt))
   return { customer, addresses, orders: history }
 }
+
+// ─────────────────────────────── Bulk VIP list ───────────────────────────────
+
+export const VIP_IMPORT_MAX_LINES = 2000
+
+export interface VipImportResult {
+  /** New customers created as VIP. */
+  created: { name: string; phone: string }[]
+  /** Existing customers that become VIP. */
+  upgraded: { name: string; phone: string }[]
+  alreadyVip: number
+  duplicates: number
+  invalid: { line: number; reason: 'phone_invalid' | 'name_missing' }[]
+  applied: boolean
+}
+
+/** One line = a name and a phone in any order, separated by comma, tab, semicolon or " - ". */
+function parseVipLine(raw: string): { name: string; phone: string | null } {
+  const line = normalizeDigits(raw).trim()
+  const parts = line.split(/\t|,|،|;|\s[-–]\s/).map((p) => p.trim()).filter(Boolean)
+  let phone: string | null = null
+  const nameParts: string[] = []
+  for (const p of parts) {
+    const e164: string | null = phone ? null : normalizePhone(p)
+    if (e164) phone = e164
+    else nameParts.push(p)
+  }
+  if (!phone) {
+    // "Sara 0551234567" without a separator: take the trailing number.
+    const m = line.match(/^(.*?)[\s:]*((?:\+|00)?[\d\s-]{9,16})$/)
+    const e164 = m ? normalizePhone(m[2]!) : null
+    if (e164) return { name: m![1]!.trim(), phone: e164 }
+  }
+  return { name: nameParts.join(' ').replace(/\s+/g, ' ').slice(0, 120), phone }
+}
+
+/**
+ * Mark a pasted list of customers as VIP (spec §9: VIP gets 25% of the offer price on new
+ * bookings). Existing customers (found by main or second number) keep their saved name;
+ * new ones are created. `apply = false` only previews — nothing is written.
+ */
+export async function importVipList(actor: Actor, text: string, apply: boolean): Promise<VipImportResult> {
+  authorize(actor, 'customers.manage')
+  authorize(actor, 'vip.manage')
+  const lines = String(text ?? '').split(/\r?\n/)
+  if (lines.filter((l) => l.trim()).length > VIP_IMPORT_MAX_LINES) throw new ValidationError('validation_failed', { list: 'too_many_lines' })
+
+  const wanted = new Map<string, { name: string; line: number }>()
+  const result: VipImportResult = { created: [], upgraded: [], alreadyVip: 0, duplicates: 0, invalid: [], applied: false }
+  lines.forEach((raw, i) => {
+    if (!raw.trim()) return
+    const { name, phone } = parseVipLine(raw)
+    if (!phone) return void result.invalid.push({ line: i + 1, reason: 'phone_invalid' })
+    if (wanted.has(phone)) return void result.duplicates++
+    wanted.set(phone, { name, line: i + 1 })
+  })
+
+  return getDb().transaction(async (tx) => {
+    const phones = [...wanted.keys()]
+    const existing = phones.length
+      ? await tx
+          .select()
+          .from(customers)
+          .where(or(inArray(customers.phoneE164, phones), inArray(customers.altPhoneE164, phones)))
+          .for('update')
+      : []
+    const byPhone = new Map<string, (typeof existing)[number]>()
+    for (const c of existing) {
+      byPhone.set(c.phoneE164, c)
+      if (c.altPhoneE164) byPhone.set(c.altPhoneE164, c)
+    }
+    const seen = new Set<string>()
+    for (const [phone, { name, line }] of wanted) {
+      const c = byPhone.get(phone)
+      if (c) {
+        if (seen.has(c.id)) {
+          result.duplicates++
+          continue
+        }
+        seen.add(c.id)
+        if (c.isVip) result.alreadyVip++
+        else result.upgraded.push({ name: c.name, phone: c.phoneE164 })
+        if (apply && !c.isVip) {
+          await tx.update(customers).set({ isVip: true, updatedAt: new Date() }).where(eq(customers.id, c.id))
+          await writeAudit(tx, { actorUserId: actor.userId, action: 'customer.vip_change', entityType: 'customer', entityId: c.id, before: { isVip: false }, after: { isVip: true }, reason: 'VIP list import' })
+        }
+      } else if (!name) {
+        result.invalid.push({ line, reason: 'name_missing' })
+      } else {
+        result.created.push({ name, phone })
+        if (apply) {
+          const [n] = await tx.insert(customers).values({ name, phoneE164: phone, isVip: true, messageLocale: 'ar', createdByUserId: actor.userId }).returning({ id: customers.id })
+          await writeAudit(tx, { actorUserId: actor.userId, action: 'customer.create', entityType: 'customer', entityId: n!.id, after: { isVip: true }, reason: 'VIP list import' })
+        }
+      }
+    }
+    result.invalid.sort((a, b) => a.line - b.line)
+    result.applied = apply
+    return result
+  })
+}
+
