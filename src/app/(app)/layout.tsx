@@ -9,10 +9,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const actor = await requireActor()
   const t = createTranslator(actor.locale)
   // Menu entries appear only for sections this role may use; the server re-checks every request.
+  const entry = (show: boolean, href: string, label: string, icon: NavItem['icon']): NavItem[] => (show ? [{ href, label, icon }] : [])
   const items: NavItem[] = [
     { href: '/', label: t('nav.dashboard'), icon: 'home' },
-    ...(can(actor, 'staff.manage') ? [{ href: '/staff', label: t('nav.staff'), icon: 'staff' as const }] : []),
-    ...(can(actor, 'audit.read') ? [{ href: '/audit', label: t('nav.audit'), icon: 'audit' as const }] : []),
+    ...entry(can(actor, 'schedule.read.own') && actor.role === 'specialist', '/schedule', t('nav.schedule'), 'schedule'),
+    ...entry(can(actor, 'orders.read.all'), '/orders', t('nav.orders'), 'orders'),
+    ...entry(can(actor, 'customers.manage'), '/customers', t('nav.customers'), 'customers'),
+    ...entry(can(actor, 'orders.manage') || can(actor, 'catalog.manage'), '/catalog', t('nav.catalog'), 'catalog'),
+    ...entry(can(actor, 'staff.manage'), '/staff', t('nav.staff'), 'staff'),
+    ...entry(can(actor, 'settings.manage'), '/settings', t('nav.settings'), 'settings'),
+    ...entry(can(actor, 'audit.read'), '/audit', t('nav.audit'), 'audit'),
     { href: '/account', label: t('nav.account'), icon: 'account' },
   ]
   return (

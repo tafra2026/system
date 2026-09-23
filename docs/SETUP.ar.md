@@ -12,7 +12,7 @@
 npm install                 # تثبيت المكتبات
 cp .env.example .env        # ثم افتح .env وضع روابط قاعدة البيانات
 npm run db:migrate          # إنشاء الجداول
-npm run db:seed             # إدخال الموظفين الثمانية (بدون حسابات دخول)
+npm run db:seed             # إدخال قائمة الأسعار والموظفين الثمانية (بدون حسابات دخول)
 npm run owner:invite -- --role=owner --username=doha   # يطبع رابط تفعيل حساب المالكة
 npm run dev                 # افتح http://localhost:3000
 ```

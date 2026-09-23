@@ -54,8 +54,7 @@ export function Field({
   )
 }
 
-export const inputClass =
-  'min-h-11 w-full rounded-xl border border-line bg-surface px-3 text-base text-ink placeholder:text-muted/70 focus:border-brand-deep aria-[invalid=true]:border-danger'
+export { inputClass } from './form-styles'
 
 export function SubmitButton({
   children,

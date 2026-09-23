@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 export interface NavItem {
   href: string
   label: string
-  icon: 'home' | 'staff' | 'audit' | 'account'
+  icon: 'home' | 'staff' | 'audit' | 'account' | 'customers' | 'orders' | 'catalog' | 'settings' | 'schedule'
 }
 
 const icons: Record<NavItem['icon'], React.ReactNode> = {
@@ -28,6 +28,36 @@ const icons: Record<NavItem['icon'], React.ReactNode> = {
     <>
       <circle cx="12" cy="8" r="4" />
       <path d="M4 21c.8-4.2 4-6.5 8-6.5s7.2 2.3 8 6.5" />
+    </>
+  ),
+  customers: (
+    <>
+      <path d="M12 3c2.5 0 4 1.8 4 4.2S14.5 12 12 12 8 9.6 8 7.2 9.5 3 12 3z" />
+      <path d="M5 21c.4-4 3.3-6.5 7-6.5s6.6 2.5 7 6.5" />
+    </>
+  ),
+  orders: (
+    <>
+      <rect x="4" y="5" width="16" height="16" rx="2" />
+      <path d="M8 3v4M16 3v4M4 10h16M8 14h3M8 17h6" />
+    </>
+  ),
+  catalog: (
+    <>
+      <path d="M3 12 12 3h8v8l-9 9z" />
+      <circle cx="16" cy="8" r="1.5" />
+    </>
+  ),
+  settings: (
+    <>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" />
+    </>
+  ),
+  schedule: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
     </>
   ),
 }
@@ -77,15 +107,15 @@ export function BottomNav({ items, label }: { items: NavItem[]; label: string })
   const pathname = usePathname()
   return (
     <nav aria-label={label} className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
-      <ul className="mx-auto flex max-w-lg">
+      <ul className="mx-auto flex max-w-2xl overflow-x-auto">
         {items.map((item) => {
           const active = isActive(pathname, item.href)
           return (
-            <li key={item.href} className="flex-1">
+            <li key={item.href} className="min-w-[4.5rem] flex-1">
               <Link
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
-                className={`flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-medium ${active ? 'text-brand-deep' : 'text-muted'}`}
+                className={`flex min-h-14 flex-col items-center justify-center gap-0.5 whitespace-nowrap px-1 text-[11px] font-medium ${active ? 'text-brand-deep' : 'text-muted'}`}
               >
                 <span className={`rounded-full px-3 py-0.5 ${active ? 'bg-brand-soft' : ''}`}>
                   <Icon name={item.icon} />

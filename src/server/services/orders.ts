@@ -953,3 +953,17 @@ export async function visitsOnOperationalDate(actor: Actor, date: string) {
     .where(and(eq(visits.operationalDate, date), inArray(orders.status, ['confirmed', 'completed', 'pending_review'])))
     .orderBy(asc(visits.startsAt))
 }
+
+/** Everything the booking wizard needs, filtered by the actor's permissions. */
+export async function bookingContext(actor: Actor) {
+  authorize(actor, 'orders.manage')
+  const { getCatalog } = await import('./catalog')
+  const catalog = await getCatalog(actor)
+  return {
+    catalog,
+    specialists: await listBookableSpecialists(actor),
+    moderators: await listModerators(actor),
+    vipOnPackages: await getSetting(getDb(), 'vip_applies_to_packages'),
+    permissions: { adjust: can(actor, 'pricing.adjust'), free: can(actor, 'pricing.free'), custom: can(actor, 'services.custom') },
+  }
+}
