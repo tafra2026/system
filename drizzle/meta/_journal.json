@@ -50,6 +50,20 @@
       "when": 1790191138363,
       "tag": "0006_employee_days_off",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790192617290,
+      "tag": "0007_payments_commissions",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790192633597,
+      "tag": "0008_money_guards",
+      "breakpoints": true
     }
   ]
 }

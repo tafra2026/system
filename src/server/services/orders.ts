@@ -31,6 +31,7 @@ import { getDaysOff, getSetting } from './settings'
 import { isDayOff } from '@/domain/trips'
 import { syncLegsForVisit } from './trip-sync'
 import { employeesOffOn, offCalendar } from './time-off'
+import { syncCommissions } from './commissions'
 import { parseWith, pgErrorCode } from './validation'
 
 // ─────────────────────────────── Input schema ───────────────────────────────
@@ -639,6 +640,7 @@ export async function completeVisit(actor: Actor, visitId: string) {
     if (v.status !== 'scheduled' || o.status === 'draft') throw new ValidationError('visit_not_scheduled')
     await tx.update(visits).set({ status: 'completed', completedAt: new Date(), updatedAt: new Date() }).where(eq(visits.id, visitId))
     await refreshOrderStatus(tx, o.id)
+    await syncCommissions(tx, o.id)
     await writeAudit(tx, { actorUserId: actor.userId, action: 'visit.complete', entityType: 'order', entityId: o.id, after: { visit: v.sequence } })
   })
 }

@@ -592,6 +592,105 @@ export const employeeDaysOff = pgTable(
   (t) => [uniqueIndex('employee_days_off_active_uq').on(t.employeeId, t.offDate).where(sql`${t.cancelledAt} IS NULL`)],
 )
 
+// ─────────────────────────────── Payments, cash custody, commissions (phase 4) ───────────────────────────────
+
+export const paymentMethod = pgEnum('payment_method', ['cash', 'bank_transfer', 'pos', 'tabby', 'tamara'])
+export const paymentStatus = pgEnum('payment_status', ['pending', 'confirmed', 'rejected'])
+
+/**
+ * One payment towards an order. Amount, method, real time received, status, reference and
+ * who recorded it. A photo or a created link is NOT proof: only `confirmed` counts as paid.
+ * `idempotency_key` makes double-taps and repeated webhooks harmless.
+ */
+export const payments = pgTable(
+  'payments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orderId: uuid('order_id')
+      .notNull()
+      .references(() => orders.id, { onDelete: 'restrict' }),
+    method: paymentMethod('method').notNull(),
+    amountHalalas: integer('amount_halalas').notNull(),
+    status: paymentStatus('status').notNull(),
+    isDeposit: boolean('is_deposit').notNull().default(false),
+    /** Real time the money was received (never shifted to match the operational day). */
+    receivedAt: timestamp('received_at', { withTimezone: true }).notNull(),
+    reference: text('reference'),
+    notes: text('notes'),
+    /** Cash only: the employee holding the cash until handover. */
+    cashHolderEmployeeId: uuid('cash_holder_employee_id').references(() => employees.id, { onDelete: 'restrict' }),
+    cashHandoverId: uuid('cash_handover_id').references(() => cashHandovers.id, { onDelete: 'restrict' }),
+    idempotencyKey: text('idempotency_key'),
+    recordedByUserId: uuid('recorded_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    decidedByUserId: uuid('decided_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    rejectReason: text('reject_reason'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('payments_order_idx').on(t.orderId),
+    uniqueIndex('payments_idempotency_uq').on(t.idempotencyKey),
+    check('payments_amount_positive', sql`${t.amountHalalas} > 0`),
+    check('payments_cash_holder', sql`(${t.method} = 'cash') = (${t.cashHolderEmployeeId} IS NOT NULL)`),
+  ],
+)
+
+/**
+ * Cash handed by a specialist to the owner at the end of the day. Moves custody only —
+ * never counted as new revenue. Differences need a reason.
+ */
+export const cashHandovers = pgTable(
+  'cash_handovers',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    fromEmployeeId: uuid('from_employee_id')
+      .notNull()
+      .references(() => employees.id, { onDelete: 'restrict' }),
+    receivedByUserId: uuid('received_by_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    expectedHalalas: integer('expected_halalas').notNull(),
+    actualHalalas: integer('actual_halalas').notNull(),
+    differenceReason: text('difference_reason'),
+    handedAt: timestamp('handed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check('cash_handovers_amounts', sql`${t.expectedHalalas} >= 0 AND ${t.actualHalalas} >= 0`),
+    check('cash_handovers_reason', sql`${t.expectedHalalas} = ${t.actualHalalas} OR length(trim(coalesce(${t.differenceReason}, ''))) > 0`),
+  ],
+)
+
+export const commissionKind = pgEnum('commission_kind', ['specialist', 'moderator', 'adjustment'])
+
+/**
+ * Commission ledger. Earned amounts are added as positive entries when execution + full
+ * payment make them due (never twice: recomputed as a delta under an order lock). Paid when
+ * included in an approved payroll. Adjustments carry a reason; paid entries are never edited.
+ */
+export const commissionEntries = pgTable(
+  'commission_entries',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orderId: uuid('order_id').references(() => orders.id, { onDelete: 'restrict' }),
+    employeeId: uuid('employee_id')
+      .notNull()
+      .references(() => employees.id, { onDelete: 'restrict' }),
+    kind: commissionKind('kind').notNull(),
+    amountHalalas: integer('amount_halalas').notNull(),
+    rulesVersion: text('rules_version'),
+    reason: text('reason'),
+    earnedAt: timestamp('earned_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Payroll month (YYYY-MM) the entry was settled in; null = earned, not yet paid. */
+    payrollItemId: uuid('payroll_item_id'),
+    createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  },
+  (t) => [
+    index('commission_entries_employee_idx').on(t.employeeId),
+    index('commission_entries_order_idx').on(t.orderId),
+    check('commission_entries_reason', sql`${t.kind} <> 'adjustment' OR length(trim(coalesce(${t.reason}, ''))) > 0`),
+  ],
+)
+
 export type Employee = typeof employees.$inferSelect
 export type User = typeof users.$inferSelect
 export type SalaryRecord = typeof salaryRecords.$inferSelect
