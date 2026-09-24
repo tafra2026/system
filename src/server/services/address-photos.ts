@@ -1,5 +1,4 @@
 import { and, eq, inArray } from 'drizzle-orm'
-import sharp from 'sharp'
 import { z } from 'zod'
 import { authorize, can, type Actor } from '../authz/actor'
 import { ForbiddenError } from '../authz/errors'
@@ -20,6 +19,9 @@ export async function setAddressPhoto(actor: Actor, addressId: string, input: { 
   if (!z.uuid().safeParse(addressId).success) throw new NotFoundError()
   if (!ALLOWED.has(input.mimeType)) throw new ValidationError('validation_failed', { photo: 'photo_type' })
   if (input.bytes.length === 0 || input.bytes.length > MAX_UPLOAD_BYTES) throw new ValidationError('validation_failed', { photo: 'photo_too_large' })
+  // Loaded on first use: libvips needs glibc >= 2.28, so on an older host only photo upload is
+  // affected instead of every page that imports this module.
+  const sharp = (await import('sharp')).default
   let out: { data: Buffer; info: { width: number; height: number } }
   try {
     out = await sharp(input.bytes, { failOn: 'error' })

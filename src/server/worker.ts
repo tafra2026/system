@@ -26,3 +26,30 @@ export async function runHousekeeping(now = new Date()) {
   await purgeOldNotifications(getDb(), now)
   await purgeExpiredSessions()
 }
+
+let started = false
+
+/** Background loop inside the web server process (see src/instrumentation.ts). */
+export function startInProcessWorker(intervalMs = 15_000) {
+  if (started) return
+  started = true
+  let running = false
+  let lastHousekeeping = 0
+  const tick = async () => {
+    if (running) return
+    running = true
+    try {
+      await runWorkerTick()
+      if (Date.now() - lastHousekeeping > 24 * 3600_000) {
+        await runHousekeeping()
+        lastHousekeeping = Date.now()
+      }
+    } catch (err) {
+      console.error('In-app worker tick failed:', err instanceof Error ? err.message : 'unknown')
+    } finally {
+      running = false
+    }
+  }
+  setInterval(tick, intervalMs).unref()
+  console.log('In-app worker started.')
+}
