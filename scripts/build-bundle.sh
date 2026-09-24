@@ -10,6 +10,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="${1:-$ROOT/dist}"
+mkdir -p "$OUT"
+OUT="$(cd "$OUT" && pwd)" # absolute: the script changes directory below
 APP="$OUT/pamper-app"
 rm -rf "$APP" "$OUT/pamper-app.tar.gz"
 mkdir -p "$APP"
