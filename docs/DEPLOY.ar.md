@@ -145,6 +145,45 @@ docker compose up -d
 | إعادة التشغيل | `docker compose restart app` |
 | إيقاف الكل | `docker compose down` (البيانات تبقى) |
 
+## 11) استضافة بدون Docker (لوحة Node.js) أو خادم بـ glibc قديم
+
+**العَرَض:** أثناء البناء يظهر `GLIBC_2.29 not found` ثم `Failed to load SWC binary` أو `Cannot find module …next.config`.
+
+**السبب:** مُترجِم Next.js (SWC) ملف جاهز يحتاج glibc 2.30 أو أحدث. الخوادم الأقدم (CentOS/AlmaLinux/CloudLinux 8، glibc 2.28) لا تستطيع **بناء** التطبيق، لكنها تستطيع **تشغيله** إذا بُني في مكان آخر. هذه الخطوات مُختبرة على AlmaLinux 8 (glibc 2.28).
+
+**الحل:**
+1. في GitHub افتح **Actions ← Build deploy bundle**. يعمل تلقائيًا مع كل تحديث، أو من «Run workflow». نزّل الملف `pamper-app-….zip` من قسم **Artifacts**، وبداخله `pamper-app.tar.gz`.
+   - أو ابنه بنفسك على جهاز Linux حديث عليه Node 22: `bash scripts/build-bundle.sh`.
+2. ارفع `pamper-app.tar.gz` للخادم وفكّه في مجلد التطبيق.
+3. في لوحة الاستضافة:
+   - **Node.js:** 22.
+   - **أمر البناء (Build):** اتركه فارغًا أو عطّله؛ الحزمة مبنية مسبقًا ولا تحتاج `npm install` ولا `npm run build`.
+   - **أمر التشغيل (Start):** `npm run start:host` (يطبّق تحديثات قاعدة البيانات ثم يشغّل التطبيق).
+   - **متغيرات البيئة:**
+
+     | المتغير | القيمة |
+     |---|---|
+     | `DATABASE_URL` | رابط PostgreSQL (الإصدار 13 أو أحدث، ويُسمح بإضافة `btree_gist`) |
+     | `APP_BASE_URL` | `https://test.tafraa.com` |
+     | `NODE_ENV` / `APP_ENV` | `production` |
+     | `RUN_WORKER_IN_APP` | `1` (التذكيرات وإشعارات الجوال تعمل داخل نفس التطبيق) |
+     | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | من `npm run -s push:keys` (مرة واحدة) |
+     | `PORT` | عادة تضبطه اللوحة تلقائيًا |
+
+4. من «Terminal» في اللوحة (داخل مجلد التطبيق)، مرة واحدة:
+   ```bash
+   npm run -s push:keys
+   npm run db:seed
+   npm run account:create -- --role=owner --username=doha
+   ```
+
+**متطلبات الخادم:**
+- glibc 2.28 أو أحدث (`ldd --version`).
+- Node.js 22.
+- قاعدة PostgreSQL.
+- HTTPS على الدومين (تقدمه اللوحة عادة).
+- النسخ الاحتياطي لقاعدة البيانات مسؤولية مزود الاستضافة أو قاعدة البيانات في هذه الحالة.
+
 ## ما تم اختباره وما لم يُختبر بعد
 
 - ✅ صورة التطبيق تُبنى وتعمل: تحديث قاعدة البيانات تلقائيًا، التهيئة، إنشاء حساب المالكة، تسجيل الدخول.

@@ -1,0 +1,33 @@
+# Builds the ready-to-run bundle for hosts that cannot build Next.js themselves
+# (old glibc). Download it from the run's "Artifacts" section.
+name: Build deploy bundle
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/pamper-me-management-system-6mdnfv, main]
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Type-check
+        run: npm ci --no-audit --no-fund && npm run lint
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      - name: Build bundle
+        run: bash scripts/build-bundle.sh dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pamper-app-${{ github.sha }}
+          path: dist/pamper-app.tar.gz
+          retention-days: 14
