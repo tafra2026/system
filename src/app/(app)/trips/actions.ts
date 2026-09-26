@@ -32,3 +32,10 @@ export async function markStartedAction(legId: string): Promise<ActionState> {
   if (r.ok) revalidatePath('/', 'layout')
   return { ok: r.ok, error: r.error, at: r.at }
 }
+
+export async function legStepAction(legId: string, step: 'accept' | 'arrive' | 'complete'): Promise<ActionState> {
+  const { markLegStep } = await import('@/server/services/trips')
+  const r = await runAction(async (actor) => void (await markLegStep(actor, legId, step)))
+  if (r.ok) revalidatePath('/', 'layout')
+  return { ok: r.ok, error: r.error, at: r.at }
+}

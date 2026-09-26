@@ -16,6 +16,7 @@ import { myTrips } from '@/server/services/trips'
 import { myCustody } from '@/server/services/payments'
 import { dashboardFigures } from '@/server/services/reports'
 import { Figures } from '@/components/figures'
+import { AutoRefresh } from '@/components/auto-refresh'
 import { countDueMessages, myOnTheWayTasks } from '@/server/services/messages'
 
 export default async function DashboardPage() {
@@ -84,6 +85,7 @@ export default async function DashboardPage() {
           <ScheduleList visits={mine} locale={locale} path="/" />
         </Card>
       )}
+      {driverLegs && <AutoRefresh everyMs={5000} />}
       {driverLegs && (
         <Card title={t('dashboard.tripsTitle')} actions={<ButtonLink href="/my-trips" variant="secondary">{t('schedule.upcoming')}</ButtonLink>}>
           <TripsList legs={toDriverLegs(driverLegs, onTheWay)} />

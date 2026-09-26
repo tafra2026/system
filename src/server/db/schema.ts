@@ -589,8 +589,13 @@ export const tripLegs = pgTable(
     departAt: timestamp('depart_at', { withTimezone: true }).notNull(),
     arriveAt: timestamp('arrive_at', { withTimezone: true }).notNull(),
     blocking: boolean('blocking').notNull().default(true),
+    /** Driver accepted the task. */
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
     /** Set when the driver taps "I started heading to the customer". */
     startedAt: timestamp('started_at', { withTimezone: true }),
+    arrivedAt: timestamp('arrived_at', { withTimezone: true }),
+    /** Drop-off done / pick-up done. */
+    completedAt: timestamp('completed_at', { withTimezone: true }),
     createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
     ...timestamps,
   },

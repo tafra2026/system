@@ -4,6 +4,7 @@ import { COMMISSION_RULES_V1 } from '@/domain/commission'
 import { DomainError } from '@/domain/errors'
 import { isAllowedStartTime, operationalDateOf, riyadhLocalToInstant, riyadhParts, riyadhToday } from '@/domain/operational-day'
 import { formatOrderReference, packageSessionBalance, suggestedVisitMinutes, type SessionBalance } from '@/domain/order'
+import { normalizeDigits } from '@/domain/money'
 import { normalizePhone } from '@/domain/phone'
 import { orderTotals, priceLine, validateDeliveryFee, type LinePricing } from '@/domain/pricing'
 import { authorize, can, type Actor } from '../authz/actor'
@@ -12,6 +13,8 @@ import { writeAudit } from '../audit'
 import { getDb, type Executor } from '../db'
 import {
   customerAddresses,
+  payments,
+  tripLegs,
   customers,
   employees,
   orderLines,
@@ -84,6 +87,12 @@ const visitInputSchema = z.object({
   specialistIds: z.array(z.uuid()).max(6).default([]),
   notes: optText(1000),
 })
+
+/** Digits for a partial phone search: a full local number's leading 0 is dropped ("05…" → "5…"); short suffixes like "0001" stay as typed. */
+function localDigits(q: string): string {
+  const d = q.replace(/\D/g, '')
+  return d.length >= 9 && d.startsWith('0') ? d.replace(/^0+/, '') : d
+}
 
 export const orderInputSchema = z.object({
   customerId: z.uuid(),
@@ -779,33 +788,94 @@ export async function updateOrderNotes(actor: Actor, orderId: string, notes: str
 
 // ─────────────────────────────── Queries ───────────────────────────────
 
+export const ORDER_SORTS = ['visit_asc', 'visit_desc', 'created_desc', 'total_desc'] as const
+export const ORDER_PERIODS = ['all', 'today', 'upcoming', 'range'] as const
+export const PAYMENT_STATES = ['unpaid', 'partial', 'paid'] as const
+
 export interface OrderFilters {
   q?: string
   status?: string
+  period?: string
   from?: string
   to?: string
+  driverId?: string
+  specialistId?: string
+  method?: string
+  payment?: string
+  awaitingDriver?: boolean
+  sort?: string
+  page?: number
 }
 
+export const ORDERS_PAGE_SIZE = 25
+
+/**
+ * Orders list for management and the moderator: filters, sorting and pagination on the
+ * server. One row per ORDER (a package's several visits stay one order), with the next visit,
+ * specialists, driver, money and flags. Search covers reference, name, phone and district.
+ */
 export async function listOrders(actor: Actor, filters: OrderFilters = {}) {
   authorize(actor, 'orders.read.all')
   const db = getDb()
   const conds: SQL[] = []
-  if (filters.status && (['draft', 'confirmed', 'completed', 'pending_review'] as const).includes(filters.status as 'draft')) {
+  const date = (v?: string) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null)
+  if (filters.status && (['draft', 'confirmed', 'completed', 'pending_review', 'cancelled'] as const).includes(filters.status as 'draft')) {
     conds.push(eq(orders.status, filters.status as 'draft'))
   }
-  const q = filters.q?.trim()
+  const q = normalizeDigits(filters.q ?? '').trim().slice(0, 100)
   if (q) {
     const e164 = normalizePhone(q)
     const like = `%${q.replace(/[%_]/g, '')}%`
-    conds.push(or(ilike(orders.reference, like), ilike(customers.name, like), ...(e164 ? [eq(customers.phoneE164, e164)] : []))!)
+    const digits = localDigits(q)
+    conds.push(
+      or(
+        ilike(orders.reference, like),
+        ilike(customers.name, like),
+        sql`${orders.addressSnapshot}->>'district' ILIKE ${like}`,
+        ...(e164 ? [eq(customers.phoneE164, e164), eq(customers.altPhoneE164, e164)] : []),
+        ...(digits.length >= 4 ? [sql`${customers.phoneE164} LIKE ${'%' + digits + '%'}`] : []),
+      )!,
+    )
   }
-  // Date filters apply to the operational date of any visit.
-  if (filters.from && /^\d{4}-\d{2}-\d{2}$/.test(filters.from)) {
-    conds.push(sql`EXISTS (SELECT 1 FROM ${visits} v WHERE v.order_id = ${orders.id} AND v.operational_date >= ${filters.from})`)
+  const today = operationalDateOf(new Date())
+  const period = (ORDER_PERIODS as readonly string[]).includes(filters.period ?? '') ? filters.period : date(filters.from) || date(filters.to) ? 'range' : 'all'
+  const visitDate = (op: '=' | '>=' | '<=', d: string) => sql`EXISTS (SELECT 1 FROM ${visits} v WHERE v.order_id = ${orders.id} AND v.status <> 'cancelled' AND v.operational_date ${sql.raw(op)} ${d})`
+  if (period === 'today') conds.push(visitDate('=', today))
+  if (period === 'upcoming') conds.push(visitDate('>=', today))
+  if (period === 'range') {
+    if (date(filters.from)) conds.push(visitDate('>=', date(filters.from)!))
+    if (date(filters.to)) conds.push(visitDate('<=', date(filters.to)!))
   }
-  if (filters.to && /^\d{4}-\d{2}-\d{2}$/.test(filters.to)) {
-    conds.push(sql`EXISTS (SELECT 1 FROM ${visits} v WHERE v.order_id = ${orders.id} AND v.operational_date <= ${filters.to})`)
+  if (filters.driverId && z.uuid().safeParse(filters.driverId).success) {
+    conds.push(sql`EXISTS (SELECT 1 FROM ${tripLegs} l JOIN ${visits} v ON v.id = l.visit_id WHERE v.order_id = ${orders.id} AND l.driver_employee_id = ${filters.driverId})`)
   }
+  if (filters.specialistId && z.uuid().safeParse(filters.specialistId).success) {
+    conds.push(sql`EXISTS (SELECT 1 FROM ${visitSpecialists} s JOIN ${visits} v ON v.id = s.visit_id WHERE v.order_id = ${orders.id} AND s.employee_id = ${filters.specialistId})`)
+  }
+  if (filters.method && (['cash', 'bank_transfer', 'pos', 'tabby', 'tamara', 'paymob'] as const).includes(filters.method as 'cash')) {
+    conds.push(sql`EXISTS (SELECT 1 FROM ${payments} p WHERE p.order_id = ${orders.id} AND p.status = 'confirmed' AND p.method = ${filters.method})`)
+  }
+  const paidSql = sql<number>`(SELECT coalesce(sum(p.amount_halalas), 0) FROM ${payments} p WHERE p.order_id = ${orders.id} AND p.status = 'confirmed')`
+  if (filters.payment === 'unpaid') conds.push(sql`${paidSql} = 0 AND ${orders.grandTotalHalalas} > 0`)
+  if (filters.payment === 'partial') conds.push(sql`${paidSql} > 0 AND ${paidSql} < ${orders.grandTotalHalalas}`)
+  if (filters.payment === 'paid') conds.push(sql`${paidSql} >= ${orders.grandTotalHalalas}`)
+  const awaitingSql = sql<boolean>`(${orders.status} IN ('confirmed', 'pending_review') AND EXISTS (SELECT 1 FROM ${visits} v WHERE v.order_id = ${orders.id} AND v.status = 'scheduled' AND NOT EXISTS (SELECT 1 FROM ${tripLegs} l WHERE l.visit_id = v.id AND l.kind = 'dropoff')))`
+  if (filters.awaitingDriver) conds.push(awaitingSql)
+
+  const nextStart = sql`(SELECT min(v.starts_at) FROM ${visits} v WHERE v.order_id = ${orders.id} AND v.status IN ('scheduled', 'completed', 'pending_review'))`
+  const sort = (ORDER_SORTS as readonly string[]).includes(filters.sort ?? '') ? filters.sort : period === 'upcoming' || period === 'today' ? 'visit_asc' : 'created_desc'
+  const orderBy =
+    sort === 'visit_asc' ? [sql`${nextStart} ASC NULLS LAST`, desc(orders.createdAt)] : sort === 'visit_desc' ? [sql`${nextStart} DESC NULLS LAST`, desc(orders.createdAt)] : sort === 'total_desc' ? [desc(orders.grandTotalHalalas), desc(orders.createdAt)] : [desc(orders.createdAt)]
+  const nameCol = actor.locale === 'en' ? sql`coalesce(e.display_name_en, e.full_name)` : sql`e.full_name`
+  const sep = actor.locale === 'en' ? ', ' : '، '
+  const where = conds.length ? and(...conds) : undefined
+  const page = Math.max(1, Math.min(10_000, Math.floor(filters.page ?? 1)))
+
+  const [{ total }] = (await db
+    .select({ total: sql<number>`count(*)`.mapWith(Number) })
+    .from(orders)
+    .innerJoin(customers, eq(customers.id, orders.customerId))
+    .where(where)) as [{ total: number }]
   const rows = await db
     .select({
       id: orders.id,
@@ -815,15 +885,26 @@ export async function listOrders(actor: Actor, filters: OrderFilters = {}) {
       createdAt: orders.createdAt,
       customerName: customers.name,
       customerPhone: customers.phoneE164,
-      firstStart: sql<Date | null>`(SELECT min(v.starts_at) FROM ${visits} v WHERE v.order_id = ${orders.id} AND v.status IN ('scheduled','completed'))`.mapWith((v) => (v ? new Date(v as string) : null)),
-      visitCount: sql<number>`(SELECT count(*) FROM ${visits} v WHERE v.order_id = ${orders.id})`.mapWith(Number),
+      isVip: customers.isVip,
+      district: sql<string | null>`${orders.addressSnapshot}->>'district'`,
+      latitude: sql<number | null>`(${orders.addressSnapshot}->>'latitude')::float8`,
+      longitude: sql<number | null>`(${orders.addressSnapshot}->>'longitude')::float8`,
+      hasPhoto: sql<boolean>`${orders.buildingPhotoFileId} IS NOT NULL`,
+      firstStart: sql<Date | null>`${nextStart}`.mapWith((v) => (v ? new Date(v as string) : null)),
+      visitCount: sql<number>`(SELECT count(*) FROM ${visits} v WHERE v.order_id = ${orders.id} AND v.status <> 'cancelled')`.mapWith(Number),
+      paidHalalas: paidSql.mapWith(Number),
+      methods: sql<string | null>`(SELECT string_agg(DISTINCT p.method::text, ',') FROM ${payments} p WHERE p.order_id = ${orders.id} AND p.status = 'confirmed')`,
+      specialists: sql<string | null>`(SELECT string_agg(DISTINCT ${nameCol}, ${sep}) FROM ${visitSpecialists} s JOIN ${visits} v ON v.id = s.visit_id JOIN ${employees} e ON e.id = s.employee_id WHERE v.order_id = ${orders.id} AND v.status <> 'cancelled')`,
+      drivers: sql<string | null>`(SELECT string_agg(DISTINCT ${nameCol}, ${sep}) FROM ${tripLegs} l JOIN ${visits} v ON v.id = l.visit_id JOIN ${employees} e ON e.id = l.driver_employee_id WHERE v.order_id = ${orders.id} AND l.blocking)`,
+      awaitingDriver: awaitingSql,
     })
     .from(orders)
     .innerJoin(customers, eq(customers.id, orders.customerId))
-    .where(conds.length ? and(...conds) : undefined)
-    .orderBy(desc(orders.createdAt))
-    .limit(200)
-  return rows
+    .where(where)
+    .orderBy(...orderBy)
+    .limit(ORDERS_PAGE_SIZE)
+    .offset((page - 1) * ORDERS_PAGE_SIZE)
+  return { rows, total, page, pageSize: ORDERS_PAGE_SIZE, pages: Math.max(1, Math.ceil(total / ORDERS_PAGE_SIZE)), sort, period }
 }
 
 export interface OrderDetail {
@@ -1112,4 +1193,18 @@ export async function cancelVisit(actor: Actor, visitId: string, raw: unknown) {
     await afterCancellation(tx, o.id)
     await writeAudit(tx, { actorUserId: actor.userId, action: 'visit.cancel', entityType: 'order', entityId: o.id, before: { visit: v.sequence, status: v.status }, after: { reason: input.reason }, reason: input.note })
   })
+}
+
+/** Specialists and drivers for the orders-list filters (names only). */
+export async function staffForOrderFilters(actor: Actor) {
+  authorize(actor, 'orders.read.all')
+  const rows = await getDb()
+    .select({ id: employees.id, fullName: employees.fullName, displayNameEn: employees.displayNameEn, role: employees.role })
+    .from(employees)
+    .where(and(inArray(employees.role, ['specialist', 'driver']), eq(employees.status, 'active')))
+    .orderBy(asc(employees.createdAt))
+  return {
+    specialists: rows.filter((r) => r.role === 'specialist').map((r) => ({ id: r.id, name: empName(r, actor.locale)! })),
+    drivers: rows.filter((r) => r.role === 'driver').map((r) => ({ id: r.id, name: empName(r, actor.locale)! })),
+  }
 }

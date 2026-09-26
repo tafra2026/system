@@ -15,6 +15,7 @@ import { getOrderDetail, listBookableSpecialists, listModerators } from '@/serve
 import { AddressPhotoUpload } from '@/components/address-photo-upload'
 import { PaymentsCard } from '@/components/payments-card'
 import { CancelDialog } from '@/components/cancel-dialog'
+import { BackLink } from '@/components/back-link'
 import { OrderPaymentLinksCard } from '@/components/order-payment-links-card'
 import { CustomerDocumentCard } from '@/components/customer-document-card'
 import { DOCUMENT_LINK_DAYS, listCustomerDocuments } from '@/server/services/customer-documents'
@@ -67,9 +68,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="flex flex-col gap-4">
-      <Link href="/orders" className="text-sm font-medium text-brand-deep hover:underline">
-        {t('common.back')}
-      </Link>
+      <BackLink href="/orders" label={t('common.back')} />
       <PageHeader title={t('orders.detailTitle', { reference: order.reference })} subtitle={order.confirmedAt ? `${t('orders.confirmedAt')}: ${formatDateTime(order.confirmedAt, actor.locale)}` : undefined} actions={<Badge tone={orderStatusTone[order.status]}>{t(`orderStatus.${order.status}`)}</Badge>} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">

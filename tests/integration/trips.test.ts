@@ -149,3 +149,32 @@ describe('driver view', () => {
     await expect(dayPlan(driver.actor, '2026-10-01')).rejects.toBeInstanceOf(ForbiddenError)
   })
 })
+
+describe('driver progress and reassignment (driver app)', () => {
+  it('steps run in order once; reassigning moves the trip to the new driver at once', async () => {
+    const { mod, s1, driver, book } = await setup()
+    const other = await makeStaff('driver', 'D2')
+    const { markLegStep, myTripsView } = await import('@/server/services/trips')
+    const v = await book('20:00', s1.employee.id)
+    await saveLeg(mod.actor, v.id, manual(driver.employee.id, 20))
+    const [leg] = await myTrips(driver.actor, '2026-10-01', '2026-10-01')
+    await expect(markLegStep(other.actor, leg!.legId, 'accept')).rejects.toBeInstanceOf(ForbiddenError)
+    await markLegStep(driver.actor, leg!.legId, 'accept')
+    await expect(markLegStep(driver.actor, leg!.legId, 'arrive')).rejects.toMatchObject({ code: 'trip_step_order' })
+    await markLegStarted(driver.actor, leg!.legId)
+    await markLegStep(driver.actor, leg!.legId, 'arrive')
+    await markLegStep(driver.actor, leg!.legId, 'complete')
+    await markLegStep(driver.actor, leg!.legId, 'complete') // idempotent
+    const [done] = await myTrips(driver.actor, '2026-10-01', '2026-10-01')
+    expect(done).toMatchObject({ acceptedAt: expect.any(Date), startedAt: expect.any(Date), arrivedAt: expect.any(Date), completedAt: expect.any(Date) })
+    expect((await myTripsView(driver.actor, 'date', '2026-10-01')).map((l) => l.legId)).toEqual([leg!.legId])
+
+    // Reassign a second trip: the old driver loses it, the new one sees it immediately.
+    const v2 = await book('23:00', s1.employee.id)
+    await saveLeg(mod.actor, v2.id, manual(driver.employee.id, 20))
+    expect((await myTrips(driver.actor, '2026-10-01', '2026-10-01')).map((l) => l.visitId)).toContain(v2.id)
+    await saveLeg(mod.actor, v2.id, manual(other.employee.id, 20))
+    expect((await myTrips(driver.actor, '2026-10-01', '2026-10-01')).map((l) => l.visitId)).not.toContain(v2.id)
+    expect((await myTrips(other.actor, '2026-10-01', '2026-10-01')).map((l) => l.visitId)).toContain(v2.id)
+  })
+})

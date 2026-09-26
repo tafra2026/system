@@ -2,6 +2,7 @@ import { and, asc, eq, gte, inArray, lte } from 'drizzle-orm'
 import { z } from 'zod'
 import { DomainError } from '@/domain/errors'
 import { mapsLink } from '@/domain/order'
+import { addDays, operationalDateOf } from '@/domain/operational-day'
 import { legTimes, validateBuffer, validateTravelMinutes, type LegKind } from '@/domain/trips'
 import { authorize, type Actor } from '../authz/actor'
 import { ForbiddenError } from '../authz/errors'
@@ -264,7 +265,7 @@ export async function myTrips(actor: Actor, fromDate: string, toDate: string) {
         .select({ visitId: visitSpecialists.visitId, fullName: employees.fullName, displayNameEn: employees.displayNameEn })
         .from(visitSpecialists)
         .innerJoin(employees, eq(employees.id, visitSpecialists.employeeId))
-        .where(inArray(visitSpecialists.visitId, ids))
+        .where(and(inArray(visitSpecialists.visitId, ids), eq(visitSpecialists.blocking, true)))
     : []
   return rows.map((r) => {
     const a = r.o.addressSnapshot as AddressSnap | null
@@ -279,6 +280,10 @@ export async function myTrips(actor: Actor, fromDate: string, toDate: string) {
       bufferMinutes: r.l.bufferMinutes,
       travelSource: r.l.travelSource,
       startedAt: r.l.startedAt,
+      acceptedAt: r.l.acceptedAt,
+      arrivedAt: r.l.arrivedAt,
+      completedAt: r.l.completedAt,
+      operationalDate: r.v.operationalDate,
       reference: r.o.reference,
       customerName: r.customerName,
       destination: a
@@ -301,11 +306,55 @@ export async function markLegStarted(actor: Actor, legId: string) {
     if (!leg) throw new NotFoundError()
     if (leg.driverEmployeeId !== actor.employeeId) throw new ForbiddenError('schedule.read.own')
     if (leg.startedAt) return
-    await tx.update(tripLegs).set({ startedAt: new Date() }).where(eq(tripLegs.id, legId))
+    await tx.update(tripLegs).set({ startedAt: new Date(), acceptedAt: leg.acceptedAt ?? new Date() }).where(eq(tripLegs.id, legId))
     // Prepares the "on the way" message for this order and destination (spec §13).
     const [v] = await tx.select({ orderId: visits.orderId }).from(visits).where(eq(visits.id, leg.visitId))
     if (v) await syncMessageTasks(tx, v.orderId)
     await writeAudit(tx, { actorUserId: actor.userId, action: 'trip.leg_started', entityType: 'visit', entityId: leg.visitId, after: { kind: leg.kind } })
+  })
+}
+
+export type DriverView = 'today' | 'upcoming' | 'completed' | 'date'
+
+/**
+ * The driver's screen: today, the next 7 days, finished trips of the last 14 days, or one
+ * chosen day. Only her own active legs (a cancelled or reassigned trip disappears at once).
+ */
+export async function myTripsView(actor: Actor, view: DriverView, date?: string) {
+  const today = operationalDateOf(new Date())
+  if (view === 'date' && date && /^\d{4}-\d{2}-\d{2}$/.test(date)) return myTrips(actor, date, date)
+  if (view === 'upcoming') return (await myTrips(actor, addDays(today, 1), addDays(today, 7))).filter((l) => !l.completedAt)
+  if (view === 'completed') return (await myTrips(actor, addDays(today, -14), today)).filter((l) => l.completedAt).reverse()
+  return myTrips(actor, today, today)
+}
+
+export type TripStep = 'accept' | 'arrive' | 'complete'
+
+/**
+ * Driver progress on her own leg: accept → (started, see markLegStarted) → arrived → done.
+ * Each step is recorded once; steps cannot be skipped (arrive needs "started", done needs "arrived").
+ */
+export async function markLegStep(actor: Actor, legId: string, step: TripStep) {
+  authorize(actor, 'schedule.read.own')
+  if (!z.uuid().safeParse(legId).success) throw new NotFoundError()
+  await getDb().transaction(async (tx) => {
+    const [leg] = await tx.select().from(tripLegs).where(eq(tripLegs.id, legId)).for('update')
+    if (!leg || !leg.blocking) throw new NotFoundError()
+    if (leg.driverEmployeeId !== actor.employeeId) throw new ForbiddenError('schedule.read.own')
+    const now = new Date()
+    if (step === 'accept') {
+      if (leg.acceptedAt) return
+      await tx.update(tripLegs).set({ acceptedAt: now }).where(eq(tripLegs.id, legId))
+    } else if (step === 'arrive') {
+      if (leg.arrivedAt) return
+      if (!leg.startedAt) throw new ValidationError('trip_step_order')
+      await tx.update(tripLegs).set({ arrivedAt: now, acceptedAt: leg.acceptedAt ?? now }).where(eq(tripLegs.id, legId))
+    } else {
+      if (leg.completedAt) return
+      if (!leg.arrivedAt) throw new ValidationError('trip_step_order')
+      await tx.update(tripLegs).set({ completedAt: now }).where(eq(tripLegs.id, legId))
+    }
+    await writeAudit(tx, { actorUserId: actor.userId, action: `trip.leg_${step}`, entityType: 'visit', entityId: leg.visitId, after: { kind: leg.kind } })
   })
 }
 

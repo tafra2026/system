@@ -37,6 +37,12 @@ function normalizeCustomerInput(input: unknown) {
 }
 
 /** Phone-first lookup to avoid duplicates (spec §6). */
+/** Digits for a partial phone search: a full local number's leading 0 is dropped ("05…" → "5…"); short suffixes like "0001" stay as typed. */
+function localDigits(q: string): string {
+  const d = q.replace(/\D/g, '')
+  return d.length >= 9 && d.startsWith('0') ? d.replace(/^0+/, '') : d
+}
+
 export async function findCustomerByPhone(actor: Actor, phone: string) {
   authorize(actor, 'customers.manage')
   const e164 = normalizePhone(phone)
@@ -57,7 +63,7 @@ export async function searchCustomers(actor: Actor, query: string, limit = 30, o
   const base = db.select().from(customers)
   if (!q) return base.where(vip).orderBy(desc(customers.updatedAt)).limit(limit)
   const e164 = normalizePhone(q)
-  const digits = q.replace(/\D/g, '').replace(/^0+/, '')
+  const digits = localDigits(q)
   const conditions = [ilike(customers.name, `%${q.replace(/[%_]/g, '')}%`)]
   if (e164) conditions.push(eq(customers.phoneE164, e164), eq(customers.altPhoneE164, e164))
   if (digits.length >= 4) {
