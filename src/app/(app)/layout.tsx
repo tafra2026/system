@@ -45,13 +45,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </a>
       {/* Official combination: cream logo on the brand colour. Text sits in a light chip for contrast. */}
       <header className="bg-brand pt-[env(safe-area-inset-top)]">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
-          <BrandLogo label={t('app.fullName')} height={36} />
-          <div className="flex items-center gap-2">
+        {/* Start side (right in Arabic): who is signed in, role under the name. End side: bell, sign-out, logo.
+            Every piece can shrink or truncate, so the header never pushes the page wider than a phone. */}
+        <div className="mx-auto flex max-w-6xl items-center gap-2 px-4 py-3">
+          <div className="min-w-0 flex-1 rounded-2xl bg-cream px-3 py-1.5 text-start leading-tight sm:flex-none">
+            <p className="truncate text-sm font-semibold text-ink">{actor.displayName}</p>
+            <p className="truncate text-xs text-muted">{t(`roles.${actor.role}`)}</p>
+          </div>
           <Link
             href="/notifications"
             aria-label={unread > 0 ? t('notifications.bellUnread', { count: unread }) : t('notifications.title')}
-            className="relative inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-cream text-brand-deep hover:bg-brand-soft"
+            className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cream text-brand-deep hover:bg-brand-soft"
           >
             <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
               <path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z" />
@@ -61,13 +65,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               <span className="absolute -top-1 -end-1 min-w-5 rounded-full bg-danger px-1 text-center text-xs font-bold leading-5 text-white">{unread > 99 ? '99+' : unread}</span>
             )}
           </Link>
-          <div className="flex items-center gap-1 rounded-2xl bg-cream py-1 ps-3 pe-1">
-            <div className="text-end leading-tight">
-              <p className="max-w-24 truncate text-sm font-semibold text-ink sm:max-w-none">{actor.displayName}</p>
-              <p className="text-xs text-muted">{t(`roles.${actor.role}`)}</p>
-            </div>
+          <div className="shrink-0 rounded-2xl bg-cream">
             <LogoutButton action={logoutAction} />
           </div>
+          <div className="ms-auto shrink-0">
+            <BrandLogo label={t('app.fullName')} height={28} />
           </div>
         </div>
       </header>

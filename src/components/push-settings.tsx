@@ -34,7 +34,7 @@ function isStandalone() {
  * Turn phone notifications on/off for THIS device. Permission is requested only after the
  * employee taps the button (spec §14). The in-app notification centre works either way.
  */
-export function PushSettings({ publicKey }: { publicKey: string | null }) {
+export function PushSettings({ publicKey, onStatus }: { publicKey: string | null; onStatus?: (on: boolean) => void }) {
   const { t } = useI18n()
   const online = useOnline()
   const [state, setState] = useState<State>('checking')
@@ -49,9 +49,16 @@ export function PushSettings({ publicKey }: { publicKey: string | null }) {
       if (Notification.permission === 'denied') return setState('denied')
       const reg = await navigator.serviceWorker.getRegistration()
       const sub = await reg?.pushManager.getSubscription()
-      setState(sub && Notification.permission === 'granted' ? 'on' : 'off')
+      if (!sub || Notification.permission !== 'granted') return setState('off')
+      // "On" only when the server also has this device for THIS account (re-registering is safe).
+      const json = sub.toJSON()
+      const res = await fetch('/api/push/subscription', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys, deviceLabel: deviceLabel() }) })
+      setState(res.ok ? 'on' : 'off')
     })().catch(() => setState('unsupported'))
   }, [publicKey])
+  useEffect(() => {
+    if (state !== 'checking') onStatus?.(state === 'on')
+  }, [state, onStatus])
 
   async function enable() {
     if (!publicKey) return

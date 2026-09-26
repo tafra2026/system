@@ -20,8 +20,9 @@ Next 16 differs from older versions — read `node_modules/next/dist/docs/` befo
 ```
 src/domain/     Pure business rules (money, pricing, commission, operational day, phone). No I/O. Unit-tested.
 src/i18n/       Central dictionaries (ar.ts is the key schema; en.ts must match), formatting helpers.
-src/server/     Server-only: db (schema, client), auth (sessions, passwords, invites), authz (permissions),
-                services (business operations: validate → authorize → transaction → audit).
+src/server/     Server-only: db (schema, client), auth (sessions, passwords, invites, login throttle), authz (permissions),
+                services (business operations: validate → authorize → transaction → audit),
+                integrations (Paymob, Google Maps, Web Push), pdf (customer document, bidi text).
 src/app/        Routes. (auth) = public pages, (app) = signed-in pages, api/ = JSON route handlers.
 src/components/ UI components (logical CSS props only: ms/me/ps/pe/start/end — never left/right).
 scripts/        migrate, seed, create-invite, create-account, worker (reminders + Web Push), push-keys, icons.
@@ -66,6 +67,8 @@ tests/          unit/ (pure) and integration/ (real Postgres test DB).
 - Moderator commission per original order on final services total (after discounts, excl. delivery):
   <250 → 0; 250–<500 → 5; 500–1000 incl. → 10; >1000 → 40.
 - Commission is earned only after execution **and** full payment; never duplicated by retries/webhooks.
+- Orders/visits are cancelled with a reason (D72), never deleted. Paymob payments count only from a verified
+  webhook (D75). The customer PDF is never called a tax invoice (D76).
 
 ## Commands
 

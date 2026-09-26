@@ -1,4 +1,4 @@
-import { Badge, Card, DefinitionList, PageHeader } from '@/components/ui'
+import { Badge, ButtonLink, Card, DefinitionList, PageHeader } from '@/components/ui'
 import { createTranslator } from '@/i18n'
 import { requireActor } from '@/server/auth/current'
 import { LanguageForm, PasswordForm } from './account-forms'
@@ -39,7 +39,7 @@ export default async function AccountPage() {
           </ul>
         )}
       </Card>
-      <Card title={t('notifications.push.title')} subtitle={t('notifications.push.subtitle')}>
+      <Card title={t('notifications.push.title')} subtitle={t('notifications.push.subtitle')} actions={<ButtonLink href="/app-setup" variant="secondary">{t('setup.open')}</ButtonLink>}>
         <PushSettings publicKey={pushPublicKey()} />
       </Card>
       <Card title={t('account.languageTitle')}>

@@ -17,6 +17,7 @@ import { myCustody } from '@/server/services/payments'
 import { dashboardFigures } from '@/server/services/reports'
 import { Figures } from '@/components/figures'
 import { AutoRefresh } from '@/components/auto-refresh'
+import { AppSetupCard } from '@/components/app-setup-card'
 import { countDueMessages, myOnTheWayTasks } from '@/server/services/messages'
 
 export default async function DashboardPage() {
@@ -42,6 +43,8 @@ export default async function DashboardPage() {
           {t('dashboard.todayLabel')}: {formatDate(now, locale)} · <bdi>{formatTime(now, locale)}</bdi>
         </p>
       </div>
+
+      <AppSetupCard />
 
       <Card title={t('dashboard.operationalDay')} subtitle={t('dashboard.operationalDayHint')}>
         <p className="text-lg font-semibold text-brand-deep">{formatCalendarDate(opDate, locale)}</p>

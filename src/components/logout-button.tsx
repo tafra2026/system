@@ -34,8 +34,18 @@ export function LogoutButton({ action }: { action: () => Promise<void> }) {
         form.requestSubmit()
       }}
     >
-      <button type="submit" className="min-h-11 whitespace-nowrap rounded-xl px-2.5 text-sm font-medium text-brand-deep hover:bg-brand-soft">
-        {t('nav.logout')}
+      {/* Icon only on narrow phones (the label stays for screen readers); icon + label from `sm`. */}
+      <button
+        type="submit"
+        title={t('nav.logout')}
+        className="inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2 text-sm font-medium text-brand-deep hover:bg-brand-soft"
+      >
+        <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5 shrink-0 fill-none stroke-current rtl:-scale-x-100" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3" />
+          <path d="M10 17l5-5-5-5" />
+          <path d="M15 12H4" />
+        </svg>
+        <span className="sr-only sm:not-sr-only">{t('nav.logout')}</span>
       </button>
     </form>
   )

@@ -61,6 +61,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
     const state = remaining === 0 ? 'paid' : o.paidHalalas > 0 ? 'partial' : 'unpaid'
     return <Badge tone={state === 'paid' ? 'success' : state === 'partial' ? 'warning' : 'neutral'}>{t(`orders.payment.${state}`)}</Badge>
   }
+  const advanced = [f.from, f.to, f.driver, f.specialist, f.method, f.payment, f.sort, f.awaiting].filter(Boolean).length
   const methods = (o: (typeof list.rows)[number]) =>
     o.methods ? o.methods.split(',').map((m) => t(`payments.methods.${m as 'cash'}`)).join(t('common.listSeparator')) : '—'
 
@@ -76,23 +77,33 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
           </label>
           <Select name="period" label={t('orders.period')} value={f.period ?? list.period ?? 'all'} options={PERIODS.map((p) => [p, t(`orders.periods.${p}`)])} />
           <Select name="status" label={t('orders.filterStatus')} value={f.status ?? ''} options={[['', t('orders.all')], ...STATUSES.map((s) => [s, t(`orderStatus.${s}`)] as [string, string])]} />
-          <label className="flex flex-col gap-1 text-sm font-medium text-ink">
-            {t('orders.from')}
-            <input type="date" name="from" defaultValue={f.from} className={inputClass} dir="ltr" />
-          </label>
-          <label className="flex flex-col gap-1 text-sm font-medium text-ink">
-            {t('orders.to')}
-            <input type="date" name="to" defaultValue={f.to} className={inputClass} dir="ltr" />
-          </label>
-          <Select name="driver" label={t('orders.driver')} value={f.driver ?? ''} options={[['', t('orders.all')], ...staff.drivers.map((d) => [d.id, d.name] as [string, string])]} />
-          <Select name="specialist" label={t('orders.specialists')} value={f.specialist ?? ''} options={[['', t('orders.all')], ...staff.specialists.map((d) => [d.id, d.name] as [string, string])]} />
-          <Select name="method" label={t('orders.paymentMethod')} value={f.method ?? ''} options={[['', t('orders.all')], ...METHODS.map((m) => [m, t(`payments.methods.${m}`)] as [string, string])]} />
-          <Select name="payment" label={t('orders.paymentState')} value={f.payment ?? ''} options={[['', t('orders.all')], ...PAYMENT.map((m) => [m, t(`orders.payment.${m}`)] as [string, string])]} />
-          <Select name="sort" label={t('orders.sort')} value={f.sort ?? list.sort ?? ''} options={ORDER_SORTS.map((s) => [s, t(`orders.sorts.${s}`)])} />
-          <label className="flex min-h-11 items-center gap-2 text-sm text-ink">
-            <input type="checkbox" name="awaiting" value="1" defaultChecked={f.awaiting === '1'} className="h-5 w-5 accent-[var(--color-brand-deep)]" />
-            {t('orders.awaitingDriver')}
-          </label>
+          {/* Less-used filters fold away so the list is visible on a phone; open when one is in use. */}
+          <details open={advanced > 0} className="group sm:col-span-2 lg:col-span-4">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-sm font-semibold text-brand-deep">
+              <span aria-hidden className="transition-transform group-open:rotate-90 rtl:-scale-x-100">▸</span>
+              {t('orders.moreFilters')}
+              {advanced > 0 && <Badge tone="brand">{advanced}</Badge>}
+            </summary>
+            <div className="mt-2 grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+                {t('orders.from')}
+                <input type="date" name="from" defaultValue={f.from} className={inputClass} dir="ltr" />
+              </label>
+              <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+                {t('orders.to')}
+                <input type="date" name="to" defaultValue={f.to} className={inputClass} dir="ltr" />
+              </label>
+              <Select name="driver" label={t('orders.driver')} value={f.driver ?? ''} options={[['', t('orders.all')], ...staff.drivers.map((d) => [d.id, d.name] as [string, string])]} />
+              <Select name="specialist" label={t('orders.specialists')} value={f.specialist ?? ''} options={[['', t('orders.all')], ...staff.specialists.map((d) => [d.id, d.name] as [string, string])]} />
+              <Select name="method" label={t('orders.paymentMethod')} value={f.method ?? ''} options={[['', t('orders.all')], ...METHODS.map((m) => [m, t(`payments.methods.${m}`)] as [string, string])]} />
+              <Select name="payment" label={t('orders.paymentState')} value={f.payment ?? ''} options={[['', t('orders.all')], ...PAYMENT.map((m) => [m, t(`orders.payment.${m}`)] as [string, string])]} />
+              <Select name="sort" label={t('orders.sort')} value={f.sort ?? list.sort ?? ''} options={ORDER_SORTS.map((s) => [s, t(`orders.sorts.${s}`)])} />
+              <label className="flex min-h-11 items-center gap-2 text-sm text-ink">
+                <input type="checkbox" name="awaiting" value="1" defaultChecked={f.awaiting === '1'} className="h-5 w-5 accent-[var(--color-brand-deep)]" />
+                {t('orders.awaitingDriver')}
+              </label>
+            </div>
+          </details>
           <div className="flex flex-wrap gap-2 sm:col-span-2 lg:col-span-4">
             <button type="submit" className={buttonStyles.primary}>
               {t('orders.apply')}
