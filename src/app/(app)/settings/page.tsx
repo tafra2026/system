@@ -4,7 +4,7 @@ import { createTranslator } from '@/i18n'
 import { pagePermission } from '@/server/auth/current'
 import { mapsConfigured } from '@/server/integrations/google-routes'
 import { getAllSettings } from '@/server/services/settings'
-import { BufferForm, DaysOffForm, MessageOptionsForm, MessageTemplatesForm, StartPointForm, VipPackagesForm } from './settings-forms'
+import { BusinessContactForm, BufferForm, DaysOffForm, MessageOptionsForm, MessageTemplatesForm, StartPointForm, VipPackagesForm } from './settings-forms'
 
 export default async function SettingsPage() {
   const { actor, allowed } = await pagePermission('settings.manage')
@@ -32,6 +32,9 @@ export default async function SettingsPage() {
       </Card>
       <Card title={t('settings.templatesTitle')}>
         <MessageTemplatesForm custom={s.message_templates} />
+      </Card>
+      <Card title={t('settings.contactTitle')} subtitle={t('settings.contactHint')}>
+        <BusinessContactForm value={s.business_contact} />
       </Card>
       <Card title={t('settings.mapsStatus')}>
         <Badge tone={maps ? 'success' : 'warning'}>{maps ? t('settings.mapsOn') : t('settings.mapsOff')}</Badge>

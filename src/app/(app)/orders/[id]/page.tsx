@@ -16,6 +16,8 @@ import { AddressPhotoUpload } from '@/components/address-photo-upload'
 import { PaymentsCard } from '@/components/payments-card'
 import { CancelDialog } from '@/components/cancel-dialog'
 import { OrderPaymentLinksCard } from '@/components/order-payment-links-card'
+import { CustomerDocumentCard } from '@/components/customer-document-card'
+import { DOCUMENT_LINK_DAYS, listCustomerDocuments } from '@/server/services/customer-documents'
 import { Alert, ButtonLink } from '@/components/ui'
 import { OrderMessagesCard } from '@/components/order-messages-card'
 import { orderBalance } from '@/server/services/commissions'
@@ -182,6 +184,14 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
       {order.status === 'completed' && can(actor, 'orders.cancel') && <p className="text-xs text-muted">{t('cancel.completedNote')}</p>}
       <PaymentsCard actor={actor} orderId={order.id} path={`/orders/${order.id}`} />
       {canLinks && <OrderPaymentLinksCard actor={actor} orderId={order.id} />}
+      {order.status !== 'draft' && (
+        <CustomerDocumentCard
+          orderId={order.id}
+          days={DOCUMENT_LINK_DAYS}
+          canIssue={canManage}
+          docs={(await listCustomerDocuments(actor, order.id)).map((x) => ({ ...x, issuedAt: x.issuedAt.toISOString() }))}
+        />
+      )}
       <OrderMessagesCard actor={actor} orderId={order.id} />
 
       <Card title={t('orders.visits')}>

@@ -445,6 +445,12 @@ export async function saveOrder(actor: Actor, orderId: string | null, rawInput: 
           .returning()) as [Order]
       }
 
+      // The order keeps its own reference to the building photo (history does not change later).
+      const [addrPhoto] = input.addressId
+        ? await tx.select({ full: customerAddresses.photoFileId, thumb: customerAddresses.photoThumbFileId }).from(customerAddresses).where(eq(customerAddresses.id, input.addressId))
+        : []
+      await tx.update(orders).set({ buildingPhotoFileId: addrPhoto?.full ?? null, buildingPhotoThumbFileId: addrPhoto?.thumb ?? null }).where(eq(orders.id, order.id))
+
       if ((existing?.moderatorEmployeeId ?? null) !== moderatorId) {
         await tx.insert(orderModeratorChanges).values({ orderId: order.id, fromEmployeeId: existing?.moderatorEmployeeId ?? null, toEmployeeId: moderatorId, changedByUserId: actor.userId })
       }
@@ -845,7 +851,7 @@ export async function getOrderDetail(actor: Actor, orderId: string): Promise<Ord
   const [order] = await db.select().from(orders).where(eq(orders.id, orderId))
   if (!order) throw new NotFoundError()
   const [customer] = await db.select().from(customers).where(eq(customers.id, order.customerId))
-  const [addr] = order.addressId ? await db.select({ photo: customerAddresses.photoFileId }).from(customerAddresses).where(eq(customerAddresses.id, order.addressId)) : []
+  const addr = { photo: order.buildingPhotoFileId }
   const lines = await db.select().from(orderLines).where(eq(orderLines.orderId, orderId)).orderBy(asc(orderLines.sortOrder))
   const vs = await db.select().from(visits).where(eq(visits.orderId, orderId)).orderBy(asc(visits.sequence))
   const visitIds = vs.map((v) => v.id)
@@ -943,7 +949,7 @@ export async function mySchedule(actor: Actor, fromDate: string, toDate: string)
   authorize(actor, 'schedule.read.own')
   const db = getDb()
   const rows = await db
-    .select({ v: visits, o: orders, customerName: customers.name, photoFileId: customerAddresses.photoFileId })
+    .select({ v: visits, o: orders, customerName: customers.name, photoFileId: orders.buildingPhotoFileId })
     .from(visitSpecialists)
     .innerJoin(visits, eq(visits.id, visitSpecialists.visitId))
     .innerJoin(orders, eq(orders.id, visits.orderId))

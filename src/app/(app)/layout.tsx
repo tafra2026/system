@@ -6,6 +6,7 @@ import { requireActor } from '@/server/auth/current'
 import { logoutAction } from './actions'
 import Link from 'next/link'
 import { LogoutButton } from '@/components/logout-button'
+import { MapsKeyProvider } from '@/components/maps-key'
 import { unreadNotificationCount } from '@/server/services/notifications'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -37,6 +38,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { href: '/account', label: t('nav.account'), icon: 'account' },
   ]
   return (
+    <MapsKeyProvider value={process.env.GOOGLE_MAPS_BROWSER_KEY?.trim() || null}>
     <div className="min-h-dvh pb-20 md:pb-8">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:start-2 focus:top-2 focus:rounded-lg focus:bg-surface focus:p-2">
         {t('app.skipToContent')}
@@ -77,5 +79,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </div>
       <BottomNav items={items} label={t('nav.menu')} moreLabel={t('nav.more')} />
     </div>
+    </MapsKeyProvider>
   )
 }

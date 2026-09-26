@@ -3,6 +3,7 @@
 import { useActionState } from 'react'
 import { Field, FormStatus, inputClass, SubmitButton, useFieldErrors } from '@/components/form'
 import { useI18n } from '@/components/i18n-provider'
+import { LocationPicker } from '@/components/location-picker'
 import { buttonStyles } from '@/components/ui'
 import type { ActionState } from '@/server/actions'
 import { addAddressAction, archiveAddressAction, createCustomerAction, setVipAction, updateAddressAction, updateCustomerAction, type AddressLite } from './actions'
@@ -124,9 +125,13 @@ export function AddressFields({ fieldError, defaults }: { fieldError: (f: string
       <Field label={t('customers.access')} name="accessInstructions" optional>
         {(p) => <textarea {...p} defaultValue={defaults?.accessInstructions ?? ''} className={`${inputClass} min-h-16 py-2`} maxLength={1000} dir="auto" />}
       </Field>
-      <Field label={t('customers.location')} name="location" hint={t('customers.locationHint')} error={fieldError('location')} optional>
-        {(p) => <input {...p} defaultValue={defaults?.location ?? ''} className={inputClass} dir="ltr" />}
-      </Field>
+      <div className="flex flex-col gap-1">
+        <span className="text-sm font-medium text-ink">
+          {t('customers.location')} <span className="text-xs font-normal text-muted">({t('common.optional')})</span>
+        </span>
+        <span className="text-xs text-muted">{t('customers.locationHint')}</span>
+        <LocationPicker name="location" defaultValue={defaults?.location} error={fieldError('location')} />
+      </div>
     </>
   )
 }

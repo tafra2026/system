@@ -5,7 +5,7 @@ import { Field, FormStatus, inputClass, SubmitButton, useFieldErrors } from '@/c
 import { useI18n } from '@/components/i18n-provider'
 import { Badge } from '@/components/ui'
 import type { ActionState } from '@/server/actions'
-import { setBufferAction, setDaysOffAction, setMessageOptionsAction, setMessageTemplatesAction, setStartPointAction, setVipPackagesAction } from './actions'
+import { setBusinessContactAction, setBufferAction, setDaysOffAction, setMessageOptionsAction, setMessageTemplatesAction, setStartPointAction, setVipPackagesAction } from './actions'
 import { DEFAULT_MESSAGE_TEMPLATES, MESSAGE_KINDS, MESSAGE_PLACEHOLDERS, type MessageKind, type MessageLocale } from '@/domain/messages'
 
 const initial = { ok: false } as ActionState<never>
@@ -146,6 +146,31 @@ export function MessageOptionsForm({ reviewLink, sender }: { reviewLink: string 
       </Field>
       <FormStatus state={state} successText={t('common.saved')} />
       <SubmitButton variant="secondary">{t('common.save')}</SubmitButton>
+    </form>
+  )
+}
+
+export function BusinessContactForm({ value }: { value: { phone?: string; email?: string; address?: string; website?: string } | null }) {
+  const { t } = useI18n()
+  const [state, action] = useActionState(setBusinessContactAction, initial)
+  return (
+    <form action={action} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <Field label={t('settings.contactPhone')} name="phone">
+        {(p) => <input {...p} defaultValue={value?.phone ?? ''} className={`${inputClass} ltr-data`} dir="ltr" maxLength={40} />}
+      </Field>
+      <Field label={t('settings.contactEmail')} name="email">
+        {(p) => <input {...p} type="email" defaultValue={value?.email ?? ''} className={`${inputClass} ltr-data`} dir="ltr" maxLength={120} />}
+      </Field>
+      <Field label={t('settings.contactWebsite')} name="website">
+        {(p) => <input {...p} defaultValue={value?.website ?? ''} className={`${inputClass} ltr-data`} dir="ltr" maxLength={120} />}
+      </Field>
+      <Field label={t('settings.contactAddress')} name="address">
+        {(p) => <input {...p} defaultValue={value?.address ?? ''} className={inputClass} dir="auto" maxLength={200} />}
+      </Field>
+      <div className="sm:col-span-2 flex flex-col gap-2">
+        <FormStatus state={state} successText={t('common.saved')} />
+        <SubmitButton variant="secondary">{t('common.save')}</SubmitButton>
+      </div>
     </form>
   )
 }

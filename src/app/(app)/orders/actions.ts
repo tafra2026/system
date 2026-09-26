@@ -127,3 +127,25 @@ export async function cancelVisitAction(visitId: string, _prev: ActionState, for
   if (r.ok) revalidatePath('/', 'layout')
   return r
 }
+
+export async function issueDocumentAction(orderId: string, locale: 'ar' | 'en'): Promise<ActionState<{ id: string; reused: boolean }>> {
+  const { issueCustomerDocument } = await import('@/server/services/customer-documents')
+  const r = await runAction(async (actor) => {
+    const d = await issueCustomerDocument(actor, orderId, locale)
+    return { id: d.id, reused: d.reused }
+  })
+  if (r.ok) revalidatePath(`/orders/${orderId}`)
+  return r
+}
+
+export async function documentLinkAction(documentId: string): Promise<ActionState<{ url: string; wa: string }>> {
+  const { createDocumentLink } = await import('@/server/services/customer-documents')
+  const { whatsappChatLink } = await import('@/domain/messages')
+  const { createTranslator } = await import('@/i18n')
+  return runAction(async (actor) => {
+    const l = await createDocumentLink(actor, documentId)
+    const t = createTranslator(l.locale)
+    const text = t('document.waText', { name: l.name, ref: l.number, url: l.url })
+    return { url: l.url, wa: whatsappChatLink(l.phone, text) }
+  })
+}

@@ -30,6 +30,8 @@ export const SETTING_DEFAULTS = {
   review_link: null as string | null,
   /** Who sends "on the way": the trip's driver, or the order's moderator (spec §13). */
   on_the_way_sender: 'driver' as 'driver' | 'moderator',
+  /** Shown on customer documents (only what management entered; nothing is invented). */
+  business_contact: null as { phone?: string; email?: string; address?: string; website?: string } | null,
 }
 export type SettingKey = keyof typeof SETTING_DEFAULTS
 
@@ -50,6 +52,7 @@ export async function getAllSettings(actor: Actor) {
     message_templates: await getSetting(db, 'message_templates'),
     review_link: await getSetting(db, 'review_link'),
     on_the_way_sender: await getSetting(db, 'on_the_way_sender'),
+    business_contact: await getSetting(db, 'business_contact'),
   }
 }
 
@@ -66,6 +69,9 @@ const settingSchemas = {
   message_templates: z.partialRecord(z.enum(MESSAGE_KINDS), z.partialRecord(z.enum(['ar', 'en']), z.string().trim().min(1).max(2000))),
   review_link: z.url({ protocol: /^https$/ }).max(500).nullable(),
   on_the_way_sender: z.enum(['driver', 'moderator']),
+  business_contact: z
+    .object({ phone: z.string().trim().max(40).optional(), email: z.string().trim().max(120).optional(), address: z.string().trim().max(200).optional(), website: z.string().trim().max(120).optional() })
+    .nullable(),
 } satisfies Record<SettingKey, z.ZodType>
 
 export async function setSetting<K extends SettingKey>(actor: Actor, key: K, value: (typeof SETTING_DEFAULTS)[K]) {

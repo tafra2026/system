@@ -61,7 +61,10 @@ export function formatOrderReference(riyadhDate: string, sequence: number): stri
 export function parseCoordinates(input: string | null | undefined): { latitude: number; longitude: number } | null {
   if (!input) return null
   const text = decodeURIComponent(input.trim())
-  const patterns = [/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/, /@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/, /[?&](?:q|query|ll|destination)=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/, /^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/]
+  // Only a real pin: the place marker (!3d…!4d…), an explicit query/destination, or plain
+  // coordinates. "@lat,lng,zoom" is just where the map view was centred — never the customer's
+  // location — so it is ignored and the staff member is asked to drop the pin instead.
+  const patterns = [/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/, /[?&](?:q|query|ll|destination)=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/, /^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/]
   for (const re of patterns) {
     const m = text.match(re)
     if (m) {

@@ -77,3 +77,13 @@ export async function setMessageOptionsAction(_prev: ActionState, form: FormData
     }),
   )
 }
+
+export async function setBusinessContactAction(_prev: ActionState, form: FormData): Promise<ActionState> {
+  return done(
+    await runAction(async (actor) => {
+      const v = { phone: formString(form, 'phone').trim(), email: formString(form, 'email').trim(), website: formString(form, 'website').trim(), address: formString(form, 'address').trim() }
+      const filled = Object.fromEntries(Object.entries(v).filter(([, x]) => x))
+      await setSetting(actor, 'business_contact', Object.keys(filled).length ? filled : null)
+    }),
+  )
+}

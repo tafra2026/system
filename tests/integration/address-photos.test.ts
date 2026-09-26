@@ -80,3 +80,39 @@ describe('building photo of the customer address', () => {
     expect(mine.headers.get('content-type')).toBe('image/jpeg')
   })
 })
+
+describe('building photo per order, thumbnail, formats (D73)', () => {
+  it('makes a small thumbnail, updates open orders, and finished orders keep their own photo', async () => {
+    const { mod, driver, otherDriver, address, d } = await setup()
+    const { completeVisit } = await import('@/server/services/orders')
+    const { getDb } = await import('@/server/db')
+    const { files, orders } = await import('@/server/db/schema')
+    const { eq } = await import('drizzle-orm')
+    const first = await setAddressPhoto(mod.actor, address.id, { bytes: await photo(), mimeType: 'image/jpeg' })
+    const [thumb] = await getDb().select().from(files).where(eq(files.id, first.thumbFileId))
+    expect(Math.max(thumb!.width!, thumb!.height!)).toBeLessThanOrEqual(480)
+    let [o] = await getDb().select().from(orders).where(eq(orders.id, d.order.id))
+    expect(o!.buildingPhotoFileId).toBe(first.fileId) // confirmed order follows the address photo
+
+    // Driver sees the thumbnail through the order; another driver does not.
+    const [leg] = await myTrips(driver.actor, '2026-10-01', '2026-10-01')
+    expect(leg!.destination!.thumbUrl).toBe(`/api/files/${first.thumbFileId}`)
+    expect((await getVisibleFile(driver.actor, first.thumbFileId)).id).toBe(first.thumbFileId)
+    await expect(getVisibleFile(otherDriver.actor, first.thumbFileId)).rejects.toBeInstanceOf(ForbiddenError)
+
+    // After the visit is done, a new address photo does not rewrite the finished order.
+    await completeVisit(mod.actor, d.visits[0]!.id)
+    const second = await setAddressPhoto(mod.actor, address.id, { bytes: await photo(), mimeType: 'image/jpeg' })
+    ;[o] = await getDb().select().from(orders).where(eq(orders.id, d.order.id))
+    expect(o!.buildingPhotoFileId).toBe(first.fileId)
+    expect(second.fileId).not.toBe(first.fileId)
+    expect(await getDb().select().from(files).where(eq(files.id, first.fileId))).toHaveLength(1) // still referenced → kept
+  })
+
+  it('explains HEIC instead of failing silently, and refuses non-images even with an image type', async () => {
+    const { mod, address } = await setup()
+    const heic = Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from('ftypheic'), Buffer.alloc(40)])
+    await expect(setAddressPhoto(mod.actor, address.id, { bytes: heic, mimeType: 'image/heic' })).rejects.toMatchObject({ fieldErrors: { photo: 'photo_heic' } })
+    await expect(setAddressPhoto(mod.actor, address.id, { bytes: Buffer.from('<html>not an image</html>'), mimeType: 'image/jpeg' })).rejects.toMatchObject({ fieldErrors: { photo: 'photo_unreadable' } })
+  })
+})

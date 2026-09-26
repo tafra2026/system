@@ -68,7 +68,7 @@ export async function dayPlan(actor: Actor, date: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new ValidationError('validation_failed', { date: 'invalid' })
   const db = getDb()
   const rows = await db
-    .select({ v: visits, o: orders, customerName: customers.name, photoFileId: customerAddresses.photoFileId })
+    .select({ v: visits, o: orders, customerName: customers.name, photoFileId: orders.buildingPhotoFileId })
     .from(visits)
     .innerJoin(orders, eq(orders.id, visits.orderId))
     .innerJoin(customers, eq(customers.id, orders.customerId))
@@ -250,7 +250,7 @@ export async function myTrips(actor: Actor, fromDate: string, toDate: string) {
   if (actor.role !== 'driver') throw new ForbiddenError('schedule.read.own')
   const db = getDb()
   const rows = await db
-    .select({ l: tripLegs, v: visits, o: orders, customerName: customers.name, photoFileId: customerAddresses.photoFileId })
+    .select({ l: tripLegs, v: visits, o: orders, customerName: customers.name, photoFileId: orders.buildingPhotoFileId, thumbFileId: orders.buildingPhotoThumbFileId })
     .from(tripLegs)
     .innerJoin(visits, eq(visits.id, tripLegs.visitId))
     .innerJoin(orders, eq(orders.id, visits.orderId))
@@ -282,7 +282,7 @@ export async function myTrips(actor: Actor, fromDate: string, toDate: string) {
       reference: r.o.reference,
       customerName: r.customerName,
       destination: a
-        ? { district: a.district, addressLine: a.addressLine ?? null, mapUrl: a.latitude != null && a.longitude != null ? mapsLink(a.latitude, a.longitude) : null, photoUrl: r.photoFileId ? `/api/files/${r.photoFileId}` : null }
+        ? { district: a.district, addressLine: a.addressLine ?? null, mapUrl: a.latitude != null && a.longitude != null ? mapsLink(a.latitude, a.longitude) : null, photoUrl: r.photoFileId ? `/api/files/${r.photoFileId}` : null, thumbUrl: r.thumbFileId ? `/api/files/${r.thumbFileId}` : r.photoFileId ? `/api/files/${r.photoFileId}` : null }
         : null,
       origin: { label: origin.label, mapUrl: origin.latitude != null && origin.longitude != null ? mapsLink(origin.latitude, origin.longitude) : null },
       specialists: specs.filter((s) => s.visitId === r.v.id).map((s) => nameOf(s, actor.locale)),

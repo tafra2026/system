@@ -25,7 +25,9 @@ describe('references and coordinates', () => {
   })
   it('parses coordinates and maps links', () => {
     expect(parseCoordinates('21.5433, 39.1728')).toEqual({ latitude: 21.5433, longitude: 39.1728 })
-    expect(parseCoordinates('https://www.google.com/maps/@21.5433,39.1728,17z')).toEqual({ latitude: 21.5433, longitude: 39.1728 })
+    // The map view centre is not a pin (D74).
+    expect(parseCoordinates('https://www.google.com/maps/@21.5433,39.1728,17z')).toBeNull()
+    expect(parseCoordinates('https://www.google.com/maps/place/X/@21.4,39.1,17z/data=!3d21.5433!4d39.1728')).toEqual({ latitude: 21.5433, longitude: 39.1728 })
     expect(parseCoordinates('https://maps.google.com/?q=21.5,39.2')).toEqual({ latitude: 21.5, longitude: 39.2 })
     expect(parseCoordinates('https://www.google.com/maps/place/x/data=!3d21.61!4d39.11')).toEqual({ latitude: 21.61, longitude: 39.11 })
     expect(parseCoordinates('https://maps.app.goo.gl/abc')).toBeNull()

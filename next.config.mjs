@@ -12,7 +12,7 @@ const nextConfig = {
   // NEXT_OUTPUT=standalone builds a self-contained server (.next/standalone) for hosts that
   // run a prebuilt app; the default Docker setup keeps the regular output.
   ...(process.env.NEXT_OUTPUT === 'standalone' ? { output: 'standalone' } : {}),
-  serverExternalPackages: ['@node-rs/argon2', 'sharp'],
+  serverExternalPackages: ['@node-rs/argon2', 'sharp', 'pdfkit'],
   async headers() {
     return [
       {

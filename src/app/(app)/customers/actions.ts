@@ -123,3 +123,16 @@ export async function customerAddressesAction(customerId: string): Promise<Actio
     }
   })
 }
+
+/** Turn a pasted Google Maps link (incl. maps.app.goo.gl) into a pin, on the server only. */
+export async function resolveLocationAction(text: string): Promise<ActionState<{ latitude: number; longitude: number }>> {
+  const { authorize } = await import('@/server/authz/actor')
+  const { coordinatesFromInput } = await import('@/server/integrations/maps-links')
+  const { ValidationError } = await import('@/server/services/errors')
+  return runAction(async (actor) => {
+    authorize(actor, 'customers.manage')
+    const c = await coordinatesFromInput(String(text ?? '').slice(0, 1000))
+    if (!c) throw new ValidationError('validation_failed', { location: 'location_invalid' })
+    return c
+  })
+}

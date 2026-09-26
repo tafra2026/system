@@ -12,8 +12,8 @@ export const POST = withActor<Ctx>(async (req, actor, ctx) => {
   const form = await req.formData()
   const file = form.get('photo')
   if (!(file instanceof File)) throw new ValidationError('validation_failed', { photo: 'required' })
-  const { fileId } = await setAddressPhoto(actor, (await ctx.params).id, { bytes: Buffer.from(await file.arrayBuffer()), mimeType: file.type })
-  return json({ fileId, url: photoUrl(fileId) })
+  const { fileId, thumbFileId } = await setAddressPhoto(actor, (await ctx.params).id, { bytes: Buffer.from(await file.arrayBuffer()), mimeType: file.type })
+  return json({ fileId, url: photoUrl(fileId), thumbUrl: photoUrl(thumbFileId) })
 })
 
 export const DELETE = withActor<Ctx>(async (req, actor, ctx) => {

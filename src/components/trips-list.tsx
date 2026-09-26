@@ -18,7 +18,7 @@ export interface DriverLeg {
   startedAt: string | null
   reference: string
   customerName: string
-  destination: { district: string; addressLine: string | null; mapUrl: string | null; photoUrl: string | null } | null
+  destination: { district: string; addressLine: string | null; mapUrl: string | null; photoUrl: string | null; thumbUrl?: string | null } | null
   origin: { label: string; mapUrl: string | null }
   specialists: string[]
   /** "On the way" WhatsApp message assigned to this driver, once she started heading out. */
@@ -63,7 +63,7 @@ export function TripsList({ legs }: { legs: DriverLeg[] }) {
           <p className="text-sm text-muted">
             {t('trips.specialistsToCarry')}: {l.specialists.join(t('common.listSeparator'))}
           </p>
-          {l.destination?.photoUrl && <BuildingPhoto url={l.destination.photoUrl} />}
+          {l.destination?.photoUrl && <BuildingPhoto url={l.destination.photoUrl} thumbUrl={l.destination.thumbUrl} compact />}
           <div className="mt-2 flex flex-wrap items-center gap-3">
             {l.destination?.mapUrl && (
               <a href={l.destination.mapUrl} target="_blank" rel="noreferrer" className="text-sm font-medium text-brand-deep underline">

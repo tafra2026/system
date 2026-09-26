@@ -306,6 +306,7 @@ export const customerAddresses = pgTable(
     longitude: doublePrecision('longitude'),
     /** Photo of the building from outside, to help the driver find it. */
     photoFileId: uuid('photo_file_id').references(() => files.id, { onDelete: 'set null' }),
+    photoThumbFileId: uuid('photo_thumb_file_id').references(() => files.id, { onDelete: 'set null' }),
     archivedAt: timestamp('archived_at', { withTimezone: true }),
     ...timestamps,
   },
@@ -348,6 +349,9 @@ export const orders = pgTable(
     createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
     confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
     confirmedByUserId: uuid('confirmed_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    /** Building photo as it was for THIS order (kept when the address photo changes later). */
+    buildingPhotoFileId: uuid('building_photo_file_id').references(() => files.id, { onDelete: 'set null' }),
+    buildingPhotoThumbFileId: uuid('building_photo_thumb_file_id').references(() => files.id, { onDelete: 'set null' }),
     /** Cancellation (order kept with its payments; see D72). */
     cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
     cancelledByUserId: uuid('cancelled_by_user_id').references(() => users.id, { onDelete: 'set null' }),
@@ -1079,6 +1083,51 @@ export const paymentLinkEvents = pgTable(
     receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex('payment_link_events_key_uq').on(t.eventKey), index('payment_link_events_link_idx').on(t.linkId)],
+)
+
+/**
+ * Customer invoice/statement (not a tax invoice). Each issue stores a frozen snapshot of the
+ * data it shows, so a later change to the order never alters an issued document silently; a
+ * new version is issued instead. The PDF is rendered from the snapshot.
+ */
+export const customerDocuments = pgTable(
+  'customer_documents',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orderId: uuid('order_id')
+      .notNull()
+      .references(() => orders.id, { onDelete: 'restrict' }),
+    number: text('number').notNull(),
+    version: integer('version').notNull(),
+    locale: locale('locale').notNull(),
+    snapshot: jsonb('snapshot').notNull(),
+    /** SHA-256 of the snapshot content: re-issuing identical data returns the same document. */
+    contentHash: text('content_hash').notNull(),
+    issuedByUserId: uuid('issued_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    issuedAt: timestamp('issued_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('customer_documents_number_uq').on(t.number),
+    uniqueIndex('customer_documents_order_version_uq').on(t.orderId, t.locale, t.version),
+    index('customer_documents_order_idx').on(t.orderId),
+  ],
+)
+
+/** Download links sent to the customer: random, stored hashed, expiring and revocable. */
+export const customerDocumentLinks = pgTable(
+  'customer_document_links',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    documentId: uuid('document_id')
+      .notNull()
+      .references(() => customerDocuments.id, { onDelete: 'restrict' }),
+    tokenHash: text('token_hash').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('customer_document_links_token_uq').on(t.tokenHash), index('customer_document_links_doc_idx').on(t.documentId)],
 )
 
 export type Employee = typeof employees.$inferSelect
