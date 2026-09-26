@@ -1084,6 +1084,7 @@ const en: Dictionary = {
     body: 'Operations need a connection to be saved on the server. Please try again when you are back online.',
   },
   errors: {
+    supportCode: 'Error code for support: {code}',
     trip_step_order: 'Complete the previous step first (on the way, then arrived).',
     photo_heic: 'iPhone HEIC photos are not supported. In Settings → Camera → Formats choose "Most Compatible", or save the photo as JPEG first.',
     order_cancelled: 'This order is cancelled.',
