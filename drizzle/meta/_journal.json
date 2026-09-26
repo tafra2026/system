@@ -106,6 +106,27 @@
       "when": 1790200125427,
       "tag": "0014_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1790444373807,
+      "tag": "0015_cancellation",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1790444468693,
+      "tag": "0016_payment_links",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790444469608,
+      "tag": "0017_payment_link_guards",
+      "breakpoints": true
     }
   ]
 }

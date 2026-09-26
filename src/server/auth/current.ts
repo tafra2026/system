@@ -29,7 +29,12 @@ export async function getPasswordChangeActor(): Promise<Actor | null> {
 /** For pages: redirect to sign-in (or to the forced password change) when there is no usable session. */
 export async function requireActor(): Promise<Actor> {
   const actor = await getCurrentActor()
-  if (!actor) redirect((await getPasswordChangeActor()) ? '/change-password' : '/login')
+  if (!actor) {
+    if (await getPasswordChangeActor()) redirect('/change-password')
+    // A cookie that no longer maps to a usable session: expired, signed out elsewhere,
+    // account suspended or password changed. Say so instead of a silent sign-in page.
+    redirect((await getSessionToken()) ? '/login?expired=1' : '/login')
+  }
   return actor
 }
 

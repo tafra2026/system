@@ -14,8 +14,8 @@ describe('visit duration suggestion', () => {
 
 describe('package session balance', () => {
   it('total / used / scheduled / remaining', () => {
-    expect(packageSessionBalance(2, ['completed', 'unscheduled'])).toEqual({ total: 2, used: 1, scheduled: 0, pendingReview: 0, remaining: 1 })
-    expect(packageSessionBalance(2, ['completed', 'scheduled'])).toEqual({ total: 2, used: 1, scheduled: 1, pendingReview: 0, remaining: 0 })
+    expect(packageSessionBalance(2, ['completed', 'unscheduled'])).toEqual({ total: 2, used: 1, scheduled: 0, pendingReview: 0, cancelled: 0, remaining: 1 })
+    expect(packageSessionBalance(2, ['completed', 'scheduled'])).toEqual({ total: 2, used: 1, scheduled: 1, pendingReview: 0, cancelled: 0, remaining: 0 })
   })
 })
 

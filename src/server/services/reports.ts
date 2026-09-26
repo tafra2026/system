@@ -1,4 +1,4 @@
-import { and, eq, gt, gte, inArray, lte, ne, sql } from 'drizzle-orm'
+import { and, notInArray, eq, gt, gte, inArray, lte, ne, sql } from 'drizzle-orm'
 import { addDays, operationalDateOf, operationalDayBounds } from '@/domain/operational-day'
 import { isMonthKey, monthFirstDay, monthInstants, monthLastDay, previousMonth } from '@/domain/months'
 import { allocateOrderRevenue, growth } from '@/domain/revenue'
@@ -48,7 +48,7 @@ async function bookedOrders(db: Executor, from: string, to: string) {
     .select({ id: orders.id, reference: orders.reference, customerId: orders.customerId, customerName: customers.name, total: orders.grandTotalHalalas, services: orders.servicesTotalHalalas, moderatorId: orders.moderatorEmployeeId, confirmedAt: orders.confirmedAt })
     .from(orders)
     .innerJoin(customers, eq(customers.id, orders.customerId))
-    .where(and(ne(orders.status, 'draft'), eq(orders.isTest, false), eq(customers.isTest, false), gt(orders.confirmedAt, start), lte(orders.confirmedAt, end)))
+    .where(and(notInArray(orders.status, ['draft', 'cancelled']), eq(orders.isTest, false), eq(customers.isTest, false), gt(orders.confirmedAt, start), lte(orders.confirmedAt, end)))
 }
 
 /** Revenue allocation of all visits of the given orders. */
@@ -180,7 +180,7 @@ export async function monthlyReport(actor: Actor, month: string) {
     ? await db
         .select({ customerId: orders.customerId, first: sql<Date>`min(${orders.confirmedAt})`.mapWith((v) => new Date(v as string)) })
         .from(orders)
-        .where(and(inArray(orders.customerId, custIds), ne(orders.status, 'draft')))
+        .where(and(inArray(orders.customerId, custIds), notInArray(orders.status, ['draft', 'cancelled'])))
         .groupBy(orders.customerId)
     : []
   const { start: monthStart } = range(from, to)

@@ -33,6 +33,7 @@ import { syncLegsForVisit } from './trip-sync'
 import { employeesOffOn, offCalendar } from './time-off'
 import { orderBalance, syncCommissions } from './commissions'
 import { syncMessageTasks } from './messages'
+import { cancelOpenPaymentLinks, reviewOpenLinksAfterPriceChange } from './payment-links'
 import { NOBODY, notifyVisitChanges, visitPeople } from './notifications'
 import { parseWith, pgErrorCode } from './validation'
 
@@ -547,8 +548,11 @@ async function lockVisit(tx: Executor, visitId: string) {
 async function refreshOrderStatus(tx: Executor, orderId: string) {
   const vs = await tx.select({ status: visits.status }).from(visits).where(eq(visits.orderId, orderId))
   const [o] = await tx.select({ status: orders.status }).from(orders).where(eq(orders.id, orderId))
-  if (!o || o.status === 'draft') return
-  const next = vs.some((v) => v.status === 'pending_review') ? 'pending_review' : vs.every((v) => v.status === 'completed') ? 'completed' : 'confirmed'
+  if (!o || o.status === 'draft' || o.status === 'cancelled') return
+  // Cancelled visits (e.g. remaining package sessions) no longer count towards completion.
+  const active = vs.filter((v) => v.status !== 'cancelled')
+  if (active.length === 0) return
+  const next = active.some((v) => v.status === 'pending_review') ? 'pending_review' : active.every((v) => v.status === 'completed') ? 'completed' : 'confirmed'
   if (next !== o.status) await tx.update(orders).set({ status: next, updatedAt: new Date() }).where(eq(orders.id, orderId))
 }
 
@@ -575,6 +579,7 @@ export async function rescheduleVisit(actor: Actor, visitId: string, raw: unknow
     return await getDb().transaction(async (tx) => {
       const { v, o } = await lockVisit(tx, visitId)
       if (o.status === 'draft') throw new ValidationError('order_is_draft')
+      if (o.status === 'cancelled' || v.status === 'cancelled') throw new ValidationError('order_cancelled')
       if (v.status === 'completed') throw new ValidationError('visit_completed')
       const peopleBefore = await visitPeople(tx, visitId)
       const rows = await tx.select({ id: employees.id, role: employees.role, status: employees.status }).from(employees).where(inArray(employees.id, specialistIds))
@@ -670,6 +675,7 @@ export async function markVisitPendingReview(actor: Actor, visitId: string, reas
     const { v, o } = await lockVisit(tx, visitId)
     if (v.status === 'completed') throw new ValidationError('visit_completed')
     if (o.status === 'draft') throw new ValidationError('order_is_draft')
+    if (o.status === 'cancelled' || v.status === 'cancelled') throw new ValidationError('order_cancelled')
     await tx.update(visits).set({ status: 'pending_review', pendingReason: why, updatedAt: new Date() }).where(eq(visits.id, visitId))
     await tx.update(visitSpecialists).set({ blocking: false }).where(eq(visitSpecialists.visitId, visitId))
     await syncLegsForVisit(tx, visitId)
@@ -688,6 +694,7 @@ export async function adjustLinePrice(actor: Actor, lineId: string, manualFinalP
     const [o] = await tx.select().from(orders).where(eq(orders.id, line.orderId)).for('update')
     if (!o || o.status === 'draft') throw new ValidationError('order_is_draft')
     if (o.status === 'completed') throw new ValidationError('order_completed')
+    if (o.status === 'cancelled') throw new ValidationError('order_cancelled')
     let pricing: LinePricing
     try {
       pricing = priceLine({ basePrice: line.basePriceHalalas, offerPrice: line.offerPriceHalalas, vipCustomer: o.vipAtBooking, vipEligible: line.vipEligible, manualFinalPrice, manualReason: reason })
@@ -701,6 +708,7 @@ export async function adjustLinePrice(actor: Actor, lineId: string, manualFinalP
       .set({ manualFinalPriceHalalas: manualFinalPrice, manualReason: pricing.manualReason, manualByUserId: actor.userId, finalPriceHalalas: pricing.finalPrice, vipDiscountHalalas: pricing.vipDiscount, priceAfterVipHalalas: pricing.priceAfterVip })
       .where(eq(orderLines.id, lineId))
     await recalcTotals(tx, o.id)
+    await reviewOpenLinksAfterPriceChange(tx, o.id)
     await writeAudit(tx, {
       actorUserId: actor.userId,
       action: 'order.line_price_manual',
@@ -735,8 +743,10 @@ export async function setDeliveryFee(actor: Actor, orderId: string, fee: number)
     const [o] = await tx.select().from(orders).where(eq(orders.id, orderId)).for('update')
     if (!o) throw new NotFoundError()
     if (o.status === 'completed') throw new ValidationError('order_completed')
+    if (o.status === 'cancelled') throw new ValidationError('order_cancelled')
     await tx.update(orders).set({ deliveryFeeHalalas: fee }).where(eq(orders.id, orderId))
     await recalcTotals(tx, orderId)
+    await reviewOpenLinksAfterPriceChange(tx, orderId)
     await writeAudit(tx, { actorUserId: actor.userId, action: 'order.delivery_fee', entityType: 'order', entityId: orderId, before: { fee: o.deliveryFeeHalalas }, after: { fee } })
   })
 }
@@ -1011,4 +1021,89 @@ export async function bookingContext(actor: Actor) {
     vipOnPackages: await getSetting(getDb(), 'vip_applies_to_packages'),
     permissions: { adjust: can(actor, 'pricing.adjust'), free: can(actor, 'pricing.free'), custom: can(actor, 'services.custom') },
   }
+}
+
+// ─────────────────────────────── Cancellation (D72) ───────────────────────────────
+
+export const CANCEL_REASONS = ['customer_request', 'unreachable', 'specialist_unavailable', 'location_issue', 'duplicate_or_error', 'operational', 'other'] as const
+export type CancelReason = (typeof CANCEL_REASONS)[number]
+
+const cancelSchema = z
+  .object({ reason: z.enum(CANCEL_REASONS), note: optText(1000) })
+  .refine((v) => v.reason !== 'other' || !!v.note, { path: ['note'], message: 'required' })
+
+/** Cancel one not-yet-executed visit: release specialists and driver, tell them, stop reminders. */
+async function cancelVisitTx(tx: Executor, visitId: string, reason: CancelReason, note: string | null, actorUserId: string) {
+  const before = await visitPeople(tx, visitId)
+  const now = new Date()
+  await tx.update(visits).set({ status: 'cancelled', cancelledAt: now, cancelReason: reason, cancelNote: note, updatedAt: now }).where(eq(visits.id, visitId))
+  await tx.update(visitSpecialists).set({ blocking: false }).where(eq(visitSpecialists.visitId, visitId))
+  await syncLegsForVisit(tx, visitId) // legs of an inactive visit stop blocking and leave the driver's list
+  await notifyVisitChanges(tx, visitId, before, actorUserId)
+}
+
+async function afterCancellation(tx: Executor, orderId: string) {
+  await syncMessageTasks(tx, orderId) // old confirmations/reminders/"on the way" are cancelled
+  await syncCommissions(tx, orderId) // nothing is earned for visits that were not executed
+  await cancelOpenPaymentLinks(tx, orderId)
+}
+
+/**
+ * Cancel a whole order (owner, manager, moderator). The order, its payments and its history
+ * are kept. Money already collected is NOT refunded automatically: the order shows it as an
+ * amount that needs a management decision. An order with an executed visit cannot be
+ * cancelled as a whole — cancel its remaining visits instead.
+ */
+export async function cancelOrder(actor: Actor, orderId: string, raw: unknown) {
+  authorize(actor, 'orders.cancel')
+  const input = parseWith(cancelSchema, raw)
+  if (!z.uuid().safeParse(orderId).success) throw new NotFoundError()
+  return getDb().transaction(async (tx) => {
+    const [o] = await tx.select().from(orders).where(eq(orders.id, orderId)).for('update')
+    if (!o) throw new NotFoundError()
+    if (o.status === 'cancelled') return { paidHalalas: (await orderBalance(tx, orderId)).confirmed }
+    if (o.status === 'completed') throw new ValidationError('order_completed')
+    const vs = await tx.select().from(visits).where(eq(visits.orderId, orderId)).for('update')
+    if (vs.some((v) => v.status === 'completed')) throw new ValidationError('order_has_executed_visits')
+    for (const v of vs) if (v.status !== 'cancelled') await cancelVisitTx(tx, v.id, input.reason, input.note, actor.userId)
+    const now = new Date()
+    await tx
+      .update(orders)
+      .set({ status: 'cancelled', cancelledAt: now, cancelledByUserId: actor.userId, cancelReason: input.reason, cancelNote: input.note, statusBeforeCancel: o.status, updatedAt: now })
+      .where(eq(orders.id, orderId))
+    await afterCancellation(tx, orderId)
+    const balance = await orderBalance(tx, orderId)
+    await writeAudit(tx, { actorUserId: actor.userId, action: 'order.cancel', entityType: 'order', entityId: orderId, before: { status: o.status }, after: { status: 'cancelled', reason: input.reason, paidHalalas: balance.confirmed }, reason: input.note })
+    return { paidHalalas: balance.confirmed }
+  })
+}
+
+/**
+ * Cancel one remaining visit of a multi-visit order (e.g. an unused package session). Executed
+ * visits are untouched. If no active visit is left and none was executed, the order itself
+ * becomes cancelled.
+ */
+export async function cancelVisit(actor: Actor, visitId: string, raw: unknown) {
+  authorize(actor, 'orders.cancel')
+  const input = parseWith(cancelSchema, raw)
+  await getDb().transaction(async (tx) => {
+    const { v, o } = await lockVisit(tx, visitId)
+    if (v.status === 'cancelled') return
+    if (v.status === 'completed') throw new ValidationError('visit_completed')
+    if (o.status === 'draft') throw new ValidationError('order_is_draft')
+    if (o.status === 'cancelled') throw new ValidationError('order_cancelled')
+    await cancelVisitTx(tx, v.id, input.reason, input.note, actor.userId)
+    const rest = await tx.select({ status: visits.status }).from(visits).where(eq(visits.orderId, o.id))
+    if (rest.every((r) => r.status === 'cancelled')) {
+      const now = new Date()
+      await tx
+        .update(orders)
+        .set({ status: 'cancelled', cancelledAt: now, cancelledByUserId: actor.userId, cancelReason: input.reason, cancelNote: input.note, statusBeforeCancel: o.status, updatedAt: now })
+        .where(eq(orders.id, o.id))
+    } else {
+      await refreshOrderStatus(tx, o.id)
+    }
+    await afterCancellation(tx, o.id)
+    await writeAudit(tx, { actorUserId: actor.userId, action: 'visit.cancel', entityType: 'order', entityId: o.id, before: { visit: v.sequence, status: v.status }, after: { reason: input.reason }, reason: input.note })
+  })
 }

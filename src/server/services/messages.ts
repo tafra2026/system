@@ -34,7 +34,7 @@ export async function syncMessageTasks(tx: Executor, orderId: string, now = new 
   // Keys that stay valid but must NOT be created again (e.g. reminder of a visit that already started).
   const keep = new Set<string>()
 
-  if (o.status !== 'draft') {
+  if (o.status !== 'draft' && o.status !== 'cancelled') {
     desired.push({ kind: 'booking_confirmation', visitId: null, dedupeKey: `confirm:${o.id}`, dueAt: o.confirmedAt ?? now, assigneeEmployeeId: null })
     const vs = await tx.select().from(visits).where(eq(visits.orderId, o.id))
     const legs = vs.length

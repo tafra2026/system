@@ -154,3 +154,19 @@ describe('management may set the username and password itself (D61)', () => {
     await expect(setPasswordByManagement(mod.actor, mod.user.id, 'long-enough-pass', false)).rejects.toBeInstanceOf(ForbiddenError)
   })
 })
+
+describe('sessions follow the current role and status (no stale permissions)', () => {
+  it('a role change applies to the very next request; suspension ends access at once', async () => {
+    const owner = await makeStaff('owner')
+    const mod = await makeStaff('moderator')
+    const { changeRole } = await import('@/server/services/staff')
+    const { can } = await import('@/server/authz/actor')
+    expect(can((await actorFromSessionToken(mod.token))!, 'orders.read.all')).toBe(true)
+    await changeRole(owner.actor, mod.employee.id, 'driver', 'test')
+    const after = await actorFromSessionToken(mod.token)
+    expect(after?.role).toBe('driver')
+    expect(can(after!, 'orders.read.all')).toBe(false)
+    await setAccountSuspended(owner.actor, mod.user.id, true)
+    expect(await actorFromSessionToken(mod.token)).toBeNull()
+  })
+})

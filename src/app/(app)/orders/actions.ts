@@ -107,3 +107,23 @@ export async function assignItemAction(orderId: string, itemId: string, _prev: A
   if (result.ok) revalidatePath(`/orders/${orderId}`)
   return result
 }
+
+export async function cancelOrderAction(orderId: string, _prev: ActionState, form: FormData): Promise<ActionState> {
+  const { cancelOrder } = await import('@/server/services/orders')
+  const r = await runAction(async (actor) => {
+    await cancelOrder(actor, orderId, { reason: formString(form, 'reason'), note: formString(form, 'note') })
+    return undefined
+  })
+  if (r.ok) revalidatePath('/', 'layout')
+  return r
+}
+
+export async function cancelVisitAction(visitId: string, _prev: ActionState, form: FormData): Promise<ActionState> {
+  const { cancelVisit } = await import('@/server/services/orders')
+  const r = await runAction(async (actor) => {
+    await cancelVisit(actor, visitId, { reason: formString(form, 'reason'), note: formString(form, 'note') })
+    return undefined
+  })
+  if (r.ok) revalidatePath('/', 'layout')
+  return r
+}

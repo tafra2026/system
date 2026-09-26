@@ -143,14 +143,14 @@ describe('packages and visits (spec §6, §8)', () => {
       ['scheduled', 60],
       ['unscheduled', 60],
     ])
-    expect(d.lines[0]!.balance).toEqual({ total: 2, used: 0, scheduled: 1, pendingReview: 0, remaining: 1 })
+    expect(d.lines[0]!.balance).toEqual({ total: 2, used: 0, scheduled: 1, pendingReview: 0, cancelled: 0, remaining: 1 })
 
     // Second session booked later with a different specialist; order value unchanged.
     await rescheduleVisit(mod.actor, d.visits[1]!.id, { date: '2026-10-08', time: '21:00', durationMinutes: 60, specialistIds: [s2.employee.id] })
     await completeVisit(s1.actor, d.visits[0]!.id)
     await completeVisit(s1.actor, d.visits[0]!.id) // double tap: no effect
     d = await getOrderDetail(mod.actor, res.id)
-    expect(d.lines[0]!.balance).toEqual({ total: 2, used: 1, scheduled: 1, pendingReview: 0, remaining: 0 })
+    expect(d.lines[0]!.balance).toEqual({ total: 2, used: 1, scheduled: 1, pendingReview: 0, cancelled: 0, remaining: 0 })
     expect(d.order.status).toBe('confirmed')
     expect(d.order.servicesTotalHalalas).toBe(49600)
     await completeVisit(s2.actor, d.visits[1]!.id)

@@ -317,9 +317,9 @@ export const customerAddresses = pgTable(
 
 // ─────────────────────────────── Orders & visits ───────────────────────────────
 
-export const orderStatus = pgEnum('order_status', ['draft', 'confirmed', 'completed', 'pending_review'])
+export const orderStatus = pgEnum('order_status', ['draft', 'confirmed', 'completed', 'pending_review', 'cancelled'])
 export const orderLineKind = pgEnum('order_line_kind', ['service', 'package', 'custom'])
-export const visitStatus = pgEnum('visit_status', ['unscheduled', 'scheduled', 'completed', 'pending_review'])
+export const visitStatus = pgEnum('visit_status', ['unscheduled', 'scheduled', 'completed', 'pending_review', 'cancelled'])
 
 /** The financial order. Priced once; visits never duplicate its price or commission. */
 export const orders = pgTable(
@@ -348,6 +348,12 @@ export const orders = pgTable(
     createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
     confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
     confirmedByUserId: uuid('confirmed_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    /** Cancellation (order kept with its payments; see D72). */
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancelledByUserId: uuid('cancelled_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    cancelReason: text('cancel_reason'),
+    cancelNote: text('cancel_note'),
+    statusBeforeCancel: text('status_before_cancel'),
     ...timestamps,
   },
   (t) => [
@@ -434,6 +440,9 @@ export const visits = pgTable(
     completedAt: timestamp('completed_at', { withTimezone: true }),
     pendingReason: text('pending_reason'),
     notes: text('notes'),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancelReason: text('cancel_reason'),
+    cancelNote: text('cancel_note'),
     ...timestamps,
   },
   (t) => [
@@ -627,7 +636,7 @@ export const employeeDaysOff = pgTable(
 
 // ─────────────────────────────── Payments, cash custody, commissions (phase 4) ───────────────────────────────
 
-export const paymentMethod = pgEnum('payment_method', ['cash', 'bank_transfer', 'pos', 'tabby', 'tamara'])
+export const paymentMethod = pgEnum('payment_method', ['cash', 'bank_transfer', 'pos', 'tabby', 'tamara', 'paymob'])
 export const paymentStatus = pgEnum('payment_status', ['pending', 'confirmed', 'rejected'])
 
 /**
@@ -1000,6 +1009,78 @@ export const pushSubscriptions = pgTable(
   (t) => [uniqueIndex('push_subscriptions_endpoint_uq').on(t.endpoint), index('push_subscriptions_user_idx').on(t.userId)],
 )
 
+/**
+ * Online payment links (Paymob; Tabby/Tamara when their integrations are enabled). A link is a
+ * request for money, never money itself: a payment row is created only from a VERIFIED provider
+ * notification. A paid link that cannot be applied to its order (no order, order cancelled,
+ * amount above what is still due) is kept as "needs settlement" for management.
+ */
+export const paymentProvider = pgEnum('payment_provider', ['paymob', 'tabby', 'tamara'])
+export const paymentLinkStatus = pgEnum('payment_link_status', ['creating', 'open', 'authorized', 'paid', 'failed', 'expired', 'cancelled', 'refunded'])
+
+export const paymentLinks = pgTable(
+  'payment_links',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** Random public reference sent to the provider (merchant order id / special reference). */
+    reference: text('reference').notNull(),
+    provider: paymentProvider('provider').notNull(),
+    /** Methods requested for the checkout, e.g. ["card","apple_pay","stc_pay"]. */
+    methods: jsonb('methods').notNull().default([]),
+    orderId: uuid('order_id').references(() => orders.id, { onDelete: 'restrict' }),
+    customerName: text('customer_name'),
+    customerPhoneE164: text('customer_phone_e164').notNull(),
+    amountHalalas: integer('amount_halalas').notNull(),
+    currency: text('currency').notNull().default('SAR'),
+    description: text('description'),
+    status: paymentLinkStatus('status').notNull().default('creating'),
+    /** Last raw state reported by the provider (kept as sent). */
+    providerStatus: text('provider_status'),
+    providerRef: text('provider_ref'),
+    providerTxnId: text('provider_txn_id'),
+    checkoutUrl: text('checkout_url'),
+    errorCode: text('error_code'),
+    paidHalalas: integer('paid_halalas').notNull().default(0),
+    paidAt: timestamp('paid_at', { withTimezone: true }),
+    paymentId: uuid('payment_id').references(() => payments.id, { onDelete: 'restrict' }),
+    needsSettlement: boolean('needs_settlement').notNull().default(false),
+    settlementNote: text('settlement_note'),
+    settledAt: timestamp('settled_at', { withTimezone: true }),
+    settledByUserId: uuid('settled_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    idempotencyKey: text('idempotency_key'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancelReason: text('cancel_reason'),
+    createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('payment_links_reference_uq').on(t.reference),
+    uniqueIndex('payment_links_idempotency_uq').on(t.idempotencyKey),
+    index('payment_links_order_idx').on(t.orderId),
+    index('payment_links_status_idx').on(t.status, t.createdAt),
+    check('payment_links_amount_positive', sql`${t.amountHalalas} > 0`),
+    check('payment_links_paid_range', sql`${t.paidHalalas} >= 0`),
+  ],
+)
+
+/** Every provider notification as received (append-only). `event_key` makes retries no-ops. */
+export const paymentLinkEvents = pgTable(
+  'payment_link_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    provider: paymentProvider('provider').notNull(),
+    linkId: uuid('link_id').references(() => paymentLinks.id, { onDelete: 'restrict' }),
+    eventKey: text('event_key').notNull(),
+    verified: boolean('verified').notNull(),
+    outcome: text('outcome').notNull(),
+    /** Provider fields needed for audit only (masked card data as sent by the provider; no secrets). */
+    summary: jsonb('summary').notNull().default({}),
+    receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('payment_link_events_key_uq').on(t.eventKey), index('payment_link_events_link_idx').on(t.linkId)],
+)
+
 export type Employee = typeof employees.$inferSelect
 export type User = typeof users.$inferSelect
 export type SalaryRecord = typeof salaryRecords.$inferSelect
@@ -1015,3 +1096,4 @@ export type Visit = typeof visits.$inferSelect
 export type MessageTask = typeof messageTasks.$inferSelect
 export type Notification = typeof notifications.$inferSelect
 export type NotificationKind = (typeof notificationKind.enumValues)[number]
+export type PaymentLink = typeof paymentLinks.$inferSelect

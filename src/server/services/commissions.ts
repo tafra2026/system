@@ -44,7 +44,9 @@ export async function commissionUnits(db: Executor, orderId: string): Promise<{ 
     const item = items.find((i) => i.orderLineId === l.id)
     return { kind: 'service', id: l.id, specialistId: item?.specialistEmployeeId ?? null, executed: item ? done.has(item.visitId) : false }
   })
-  return { units, allExecuted: vs.length > 0 && vs.every((v) => v.status === 'completed') }
+  // Cancelled (never executed) visits are ignored; a fully cancelled order earns nothing.
+  const active = vs.filter((v) => v.status !== 'cancelled')
+  return { units, allExecuted: active.length > 0 && active.every((v) => v.status === 'completed') }
 }
 
 /**

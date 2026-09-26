@@ -23,7 +23,7 @@ export function suggestedVisitMinutes(tasks: readonly TaskForDuration[], declare
   return Math.max(fromTasks, ...declaredPackageMinutes, 0)
 }
 
-export type SessionState = 'unscheduled' | 'scheduled' | 'completed' | 'pending_review'
+export type SessionState = 'unscheduled' | 'scheduled' | 'completed' | 'pending_review' | 'cancelled'
 
 export interface SessionBalance {
   total: number
@@ -35,6 +35,8 @@ export interface SessionBalance {
   remaining: number
   /** Sessions whose visit could not be executed and awaits management review. */
   pendingReview: number
+  /** Sessions cancelled before execution (they are not "remaining" any more). */
+  cancelled: number
 }
 
 /** Session balance of a multi-visit package. Each session maps to exactly one visit. */
@@ -42,7 +44,8 @@ export function packageSessionBalance(total: number, sessionStates: readonly Ses
   const used = sessionStates.filter((s) => s === 'completed').length
   const scheduled = sessionStates.filter((s) => s === 'scheduled').length
   const pendingReview = sessionStates.filter((s) => s === 'pending_review').length
-  return { total, used, scheduled, pendingReview, remaining: Math.max(0, total - used - scheduled - pendingReview) }
+  const cancelled = sessionStates.filter((s) => s === 'cancelled').length
+  return { total, used, scheduled, pendingReview, cancelled, remaining: Math.max(0, total - used - scheduled - pendingReview - cancelled) }
 }
 
 /** Human-friendly unique reference: PM-YYMM-NNNN (sequence is global, never reused). */

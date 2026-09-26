@@ -82,6 +82,7 @@ export async function recordPayment(actor: Actor, orderId: string, raw: unknown)
         }
       }
       if (o.status === 'draft') throw new ValidationError('order_is_draft')
+      if (o.status === 'cancelled') throw new ValidationError('order_cancelled')
       const bal = await orderBalance(tx, orderId)
       if (bal.confirmed + bal.pending + input.amountHalalas > bal.total) throw new DomainError('overpayment', { remaining: (bal.total - bal.confirmed - bal.pending) / 100 })
       const [p] = await tx

@@ -24,6 +24,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     ...entry(can(actor, 'schedule.manage'), '/trips', t('nav.trips'), 'trips'),
     ...entry(can(actor, 'customers.manage'), '/customers', t('nav.customers'), 'customers'),
     ...entry(can(actor, 'sales.read'), '/reports', t('nav.reports'), 'reports'),
+    ...entry(can(actor, 'payments.links'), '/payments/links', t('nav.paymentLinks'), 'cash'),
     ...entry(can(actor, 'cash.receive_handover'), '/cash', t('nav.cash'), 'cash'),
     ...entry(can(actor, 'commissions.read.own') || can(actor, 'commissions.read.all'), '/commissions', t('nav.commissions'), 'commissions'),
     ...entry(can(actor, 'expenses.manage'), '/expenses', t('nav.expenses'), 'expenses'),

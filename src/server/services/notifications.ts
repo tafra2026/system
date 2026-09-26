@@ -118,7 +118,7 @@ export async function notifyTransferPending(tx: Executor, reference: string, amo
   await notify(tx, { userIds: await activeUsersWith(tx, 'payments.approve_transfer'), kind: 'transfer_pending', params: { reference, amountHalalas }, link: '/cash', excludeUserId: actorUserId })
 }
 
-export async function notifyPaymentDecision(tx: Executor, p: { orderId: string; amountHalalas: number; recordedByUserId: string | null }, approved: boolean, actorUserId: string) {
+export async function notifyPaymentDecision(tx: Executor, p: { orderId: string; amountHalalas: number; recordedByUserId: string | null }, approved: boolean, actorUserId: string | null) {
   const [o] = await tx.select({ reference: orders.reference, moderatorEmployeeId: orders.moderatorEmployeeId }).from(orders).where(eq(orders.id, p.orderId))
   if (!o) return
   await notify(tx, {

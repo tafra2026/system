@@ -39,8 +39,36 @@ export function withActor<C>(handler: (req: NextRequest, actor: Actor, ctx: C) =
   }
 }
 
-/** Reject cross-site state-changing requests (server actions have their own origin check). */
+/**
+ * Reject cross-site state-changing requests (server actions have their own origin check).
+ * Behind a hosting proxy the server may see itself as http://localhost:PORT, so the browser's
+ * Origin is compared with the public host (X-Forwarded-Host / Host) and APP_BASE_URL.
+ * Without an Origin header, the browser's Sec-Fetch-Site must not say "cross-site".
+ */
 export function assertSameOrigin(req: NextRequest) {
   const origin = req.headers.get('origin')
-  if (origin && origin !== req.nextUrl.origin) throw new ForbiddenError()
+  if (!origin) {
+    if (req.headers.get('sec-fetch-site') === 'cross-site') throw new ForbiddenError()
+    return
+  }
+  let originHost: string
+  try {
+    originHost = new URL(origin).host
+  } catch {
+    throw new ForbiddenError()
+  }
+  const allowed = new Set<string>([req.nextUrl.host])
+  const forwarded = req.headers.get('x-forwarded-host')?.split(',')[0]?.trim()
+  const host = req.headers.get('host')
+  if (forwarded) allowed.add(forwarded)
+  if (host) allowed.add(host)
+  const base = process.env.APP_BASE_URL
+  if (base) {
+    try {
+      allowed.add(new URL(base).host)
+    } catch {
+      // ignore a malformed APP_BASE_URL
+    }
+  }
+  if (!allowed.has(originHost)) throw new ForbiddenError()
 }

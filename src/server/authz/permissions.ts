@@ -18,6 +18,7 @@ export const PERMISSIONS = [
   'customers.manage',
   'orders.manage',
   'orders.read.all', // all operational orders
+  'orders.cancel', // cancel an order / remaining visits with a reason
   'schedule.manage',
   'schedule.read.own', // own visits (specialist) / own trips (driver)
   'team.read.own',
@@ -56,6 +57,7 @@ export const ROLE_PERMISSIONS: Record<EmployeeRole, readonly Permission[]> = {
     'customers.manage',
     'orders.manage',
     'orders.read.all',
+    'orders.cancel',
     'schedule.manage',
     'pricing.adjust',
     'pricing.free',

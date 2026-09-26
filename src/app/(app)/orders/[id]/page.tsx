@@ -14,6 +14,9 @@ import { NotFoundError } from '@/server/services/errors'
 import { getOrderDetail, listBookableSpecialists, listModerators } from '@/server/services/orders'
 import { AddressPhotoUpload } from '@/components/address-photo-upload'
 import { PaymentsCard } from '@/components/payments-card'
+import { CancelDialog } from '@/components/cancel-dialog'
+import { OrderPaymentLinksCard } from '@/components/order-payment-links-card'
+import { Alert, ButtonLink } from '@/components/ui'
 import { OrderMessagesCard } from '@/components/order-messages-card'
 import { orderBalance } from '@/server/services/commissions'
 import { getDb } from '@/server/db'
@@ -46,7 +49,10 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   const canManage = can(actor, 'orders.manage')
   if (order.status === 'draft' && canManage) redirect(`/orders/${id}/edit`)
   const canSchedule = can(actor, 'schedule.manage')
-  const canAdjust = can(actor, 'pricing.adjust') && order.status !== 'completed'
+  const canAdjust = can(actor, 'pricing.adjust') && order.status !== 'completed' && order.status !== 'cancelled'
+  const canCancel = can(actor, 'orders.cancel') && order.status !== 'cancelled' && order.status !== 'draft'
+  const canCancelOrder = canCancel && order.status !== 'completed' && !d.visits.some((v) => v.status === 'completed')
+  const canLinks = can(actor, 'payments.links') && order.status !== 'draft'
   const specialists = canSchedule ? await listBookableSpecialists(actor) : []
   const moderators = canManage ? await listModerators(actor) : []
   const address = order.addressSnapshot as AddressSnapshot | null
@@ -158,7 +164,24 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
         </Card>
       </div>
 
+      {order.status === 'cancelled' && (
+        <Alert tone="error">
+          <strong>{t('cancel.cancelledBanner')}</strong>
+          {order.cancelReason && <> — {t(`cancel.reasons.${order.cancelReason as 'other'}`)}</>}
+          {order.cancelNote && <span dir="auto"> ({order.cancelNote})</span>}
+          {order.cancelledAt && <> · <bdi>{formatDateTime(order.cancelledAt, actor.locale)}</bdi></>}
+          {balance.confirmed > 0 && <span className="mt-1 block">{t('cancel.settlement', { amount: formatMoney(balance.confirmed, actor.locale) })}</span>}
+        </Alert>
+      )}
+      {(canCancelOrder || canLinks) && (
+        <div className="flex flex-wrap gap-2">
+          {canLinks && <ButtonLink href={`/payments/links?order=${order.id}`} variant="secondary">{t('paymentLinks.fromOrder')}</ButtonLink>}
+          {canCancelOrder && <CancelDialog kind="order" id={order.id} />}
+        </div>
+      )}
+      {order.status === 'completed' && can(actor, 'orders.cancel') && <p className="text-xs text-muted">{t('cancel.completedNote')}</p>}
       <PaymentsCard actor={actor} orderId={order.id} path={`/orders/${order.id}`} />
+      {canLinks && <OrderPaymentLinksCard actor={actor} orderId={order.id} />}
       <OrderMessagesCard actor={actor} orderId={order.id} />
 
       <Card title={t('orders.visits')}>
@@ -215,7 +238,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                     </li>
                   ))}
                 </ul>
-                {canSchedule && v.status !== 'completed' && (
+                {canSchedule && v.status !== 'completed' && v.status !== 'cancelled' && order.status !== 'cancelled' && (
                   <div className="mt-3 flex flex-wrap items-start gap-2">
                     <RescheduleForm
                       orderId={order.id}
@@ -226,7 +249,14 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                     />
                     {v.status === 'scheduled' && <CompleteVisitButton path={`/orders/${order.id}`} visitId={v.id} />}
                     {v.status !== 'pending_review' && <PendingReviewForm orderId={order.id} visitId={v.id} />}
+                    {canCancel && d.visits.length > 1 && <CancelDialog kind="visit" id={v.id} />}
                   </div>
+                )}
+                {v.status === 'cancelled' && v.cancelReason && (
+                  <p className="mt-1 text-sm text-danger">
+                    {t('cancel.reason')}: {t(`cancel.reasons.${v.cancelReason as 'other'}`)}
+                    {v.cancelNote ? <span dir="auto"> — {v.cancelNote}</span> : null}
+                  </p>
                 )}
               </div>
             )
