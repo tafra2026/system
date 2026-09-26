@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build --webpack",
-    "start": "next start",
+    "start": "tsx --conditions=react-server scripts/migrate.ts && next start",
     "start:host": "tsx --conditions=react-server scripts/migrate.ts && next start",
     "lint": "tsc --noEmit",
     "test": "npm run db:migrate:test --silent && vitest run",
