@@ -104,3 +104,21 @@ describe('find any customer by phone and see her order history', () => {
     await expect(getCustomer(s1.actor, c.id)).rejects.toBeInstanceOf(ForbiddenError)
   })
 })
+
+describe('search by district and Arabic-insensitive names', () => {
+  it('finds customers by any of their districts and ignores hamza/ta marbuta differences', async () => {
+    const owner = await makeStaff('owner')
+    const { addAddress } = await import('@/server/services/customers')
+    const c = await createCustomer(owner.actor, { name: 'أمَل فاطمة', phone: '0551112222' })
+    await addAddress(owner.actor, c.id, { district: 'الروضة' })
+    await addAddress(owner.actor, c.id, { district: 'النعيم' })
+    await createCustomer(owner.actor, { name: 'نورة', phone: '0553334444' })
+    for (const q of ['امل', 'فاطمه', 'النعيم', 'روضه', '2222']) {
+      const r = await searchCustomers(owner.actor, q)
+      expect(r.map((x) => x.id), q).toEqual([c.id])
+    }
+    const [row] = await searchCustomers(owner.actor, 'امل')
+    expect(row!.districts).toContain('الروضة')
+    expect(await searchCustomers(owner.actor, 'امل', 30, { page: 2 })).toHaveLength(0)
+  })
+})

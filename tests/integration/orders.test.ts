@@ -309,6 +309,16 @@ describe('orders list filters', () => {
     expect(awaiting.rows[0]!.awaitingDriver).toBe(true)
     expect((await listOrders(ctx.mod.actor, { sort: 'visit_asc' })).rows.map((o) => o.id)).toEqual([a.id, b.id])
     expect((await listOrders(ctx.mod.actor, { specialistId: ctx.s1.employee.id })).total).toBe(2)
+    const { recordPayment } = await import('@/server/services/payments')
+    await recordPayment(ctx.mod.actor, a.id, { method: 'bank_transfer', amountHalalas: 1000, reference: 'T1' }) // pending: not paid
+    const owner = await makeStaff('owner')
+    await recordPayment(owner.actor, a.id, { method: 'cash', amountHalalas: 2500 })
+    const rowA = (await listOrders(ctx.mod.actor, {})).rows.find((o) => o.id === a.id)!
+    expect(rowA.paidHalalas).toBe(2500)
+    expect(rowA.methods).toBe('cash')
+    expect(rowA.specialists).toBeTruthy()
+    expect((await listOrders(ctx.mod.actor, { payment: 'partial' })).rows.map((o) => o.id)).toEqual([a.id])
+    expect((await listOrders(ctx.mod.actor, { method: 'cash' })).total).toBe(1)
     const p2 = await listOrders(ctx.mod.actor, { page: 2 })
     expect(p2.rows).toHaveLength(0)
     expect(p2.pages).toBe(1)

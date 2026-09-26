@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
 import { z } from 'zod'
 import { normalizeDigits } from '@/domain/money'
 import { normalizePhone } from '@/domain/phone'
@@ -52,24 +52,48 @@ export async function findCustomerByPhone(actor: Actor, phone: string) {
 }
 
 /**
- * Search by name or phone (any common format: 05…, 5…, 9665…, +966…, Arabic digits, or the
- * last 4+ digits). Also finds customers by their second number. `vipOnly` lists VIP customers.
+ * Search by name (partial, Arabic-insensitive: أ/إ/آ=ا, ة=ه, ى=ي), phone in any common format
+ * (05…, 5…, 9665…, +966…, Arabic digits, the last 4+ digits, or the second number) and district
+ * (any of the customer's addresses). `vipOnly` lists VIP customers. Paged on the server.
  */
-export async function searchCustomers(actor: Actor, query: string, limit = 30, opts: { vipOnly?: boolean } = {}) {
+export async function searchCustomers(actor: Actor, query: string, limit = 30, opts: { vipOnly?: boolean; page?: number } = {}) {
   authorize(actor, 'customers.manage')
-  const q = normalizeDigits(query).trim()
+  const q = normalizeDigits(query).trim().slice(0, 100)
   const db = getDb()
-  const vip = opts.vipOnly ? eq(customers.isVip, true) : undefined
-  const base = db.select().from(customers)
-  if (!q) return base.where(vip).orderBy(desc(customers.updatedAt)).limit(limit)
-  const e164 = normalizePhone(q)
-  const digits = localDigits(q)
-  const conditions = [ilike(customers.name, `%${q.replace(/[%_]/g, '')}%`)]
-  if (e164) conditions.push(eq(customers.phoneE164, e164), eq(customers.altPhoneE164, e164))
-  if (digits.length >= 4) {
-    conditions.push(sql`${customers.phoneE164} LIKE ${'%' + digits + '%'}`, sql`coalesce(${customers.altPhoneE164}, '') LIKE ${'%' + digits + '%'}`)
+  const conds: SQL[] = []
+  if (opts.vipOnly) conds.push(eq(customers.isVip, true))
+  if (q) {
+    const e164 = normalizePhone(q)
+    const digits = localDigits(q)
+    const like = `%${q.replace(/[%_\\]/g, '')}%`
+    const conditions: SQL[] = [
+      sql`pm_normalize_ar(${customers.name}) LIKE pm_normalize_ar(${like})`,
+      sql`EXISTS (SELECT 1 FROM ${customerAddresses} a WHERE a.customer_id = ${customers.id} AND a.archived_at IS NULL AND pm_normalize_ar(a.district) LIKE pm_normalize_ar(${like}))`,
+    ]
+    if (e164) conditions.push(eq(customers.phoneE164, e164), eq(customers.altPhoneE164, e164))
+    if (digits.length >= 4) {
+      conditions.push(sql`${customers.phoneE164} LIKE ${'%' + digits + '%'}`, sql`coalesce(${customers.altPhoneE164}, '') LIKE ${'%' + digits + '%'}`)
+    }
+    conds.push(or(...conditions)!)
   }
-  return base.where(and(or(...conditions), vip)).orderBy(desc(customers.updatedAt)).limit(limit)
+  const page = Math.max(1, Math.floor(opts.page ?? 1))
+  return db
+    .select({
+      id: customers.id,
+      name: customers.name,
+      phoneE164: customers.phoneE164,
+      altPhoneE164: customers.altPhoneE164,
+      isVip: customers.isVip,
+      messageLocale: customers.messageLocale,
+      // Qualified by hand: in a single-table select Drizzle writes columns unqualified, and inside
+      // this subquery a bare "id" would silently mean the address id.
+      districts: sql<string | null>`(SELECT string_agg(DISTINCT a.district, ' · ') FROM ${customerAddresses} a WHERE a.customer_id = "customers"."id" AND a.archived_at IS NULL)`,
+    })
+    .from(customers)
+    .where(conds.length ? and(...conds) : undefined)
+    .orderBy(desc(customers.updatedAt))
+    .limit(limit)
+    .offset((page - 1) * limit)
 }
 
 export async function createCustomer(actor: Actor, input: Record<string, unknown> & { isVip?: boolean }) {

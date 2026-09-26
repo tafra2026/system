@@ -771,8 +771,9 @@ function ServicesStep({
   onAddVisit: () => void
 }) {
   const { t, locale } = useI18n()
-  const [serviceId, setServiceId] = useState('')
-  const [packageId, setPackageId] = useState('')
+  // Category first, then its services. Changing category never adds or removes lines.
+  const [category, setCategory] = useState<string>(ctx.categories[0]?.code ?? '__packages')
+  const [added, setAdded] = useState<string | null>(null)
   const [custom, setCustom] = useState({ name: '', price: '', duration: '30', notes: '', vip: false })
   const beneficiaries = Array.from({ length: persons }, (_, i) => i + 1)
   const visitsIdx = Array.from({ length: visitCount }, (_, i) => i)
@@ -804,63 +805,71 @@ function ServicesStep({
         <span className="text-xs font-normal text-muted">{t('wizard.personsHint')}</span>
       </label>
 
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <div className="flex flex-col gap-2 rounded-xl border border-line p-3">
-          <label className="flex flex-col gap-1 text-sm font-medium text-ink">
-            {t('wizard.addService')}
-            <select className={inputClass} value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
-              <option value="">—</option>
-              {ctx.categories.map((c) => (
-                <optgroup key={c.code} label={nameOf(c)}>
-                  {ctx.services
-                    .filter((s) => s.categoryCode === c.code)
-                    .map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {nameOf(s)} — {formatMoney(s.offerPriceHalalas, locale)} · {t('orders.minutes', { n: s.durationMinutes })}
-                      </option>
-                    ))}
-                </optgroup>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            className={buttonStyles.secondary}
-            disabled={!serviceId}
-            onClick={() => {
-              onAdd({ key: newKey(), kind: 'service', serviceId, beneficiaryIndex: 1, visitIndex: 0, specialistId: null, manualPrice: '', manualReason: '' })
-              setServiceId('')
-            }}
-          >
-            {t('wizard.add')}
-          </button>
+      <section className="flex flex-col gap-3 rounded-xl border border-line p-3" aria-labelledby="svc-picker">
+        <h3 id="svc-picker" className="text-sm font-semibold text-ink">
+          {t('wizard.chooseCategory')}
+        </h3>
+        <div className="flex flex-wrap gap-2" role="tablist" aria-label={t('wizard.chooseCategory')}>
+          {[...ctx.categories.map((c) => ({ code: c.code, label: nameOf(c) })), ...(ctx.packages.length ? [{ code: '__packages', label: t('wizard.packagesCategory') }] : [])].map((c) => (
+            <button
+              key={c.code}
+              type="button"
+              role="tab"
+              aria-selected={category === c.code}
+              onClick={() => setCategory(c.code)}
+              className={`min-h-11 rounded-full border px-4 text-sm font-semibold ${category === c.code ? 'border-brand-deep bg-brand-deep text-white' : 'border-line bg-surface text-brand-deep'}`}
+            >
+              {c.label}
+            </button>
+          ))}
         </div>
-        <div className="flex flex-col gap-2 rounded-xl border border-line p-3">
-          <label className="flex flex-col gap-1 text-sm font-medium text-ink">
-            {t('wizard.addPackage')}
-            <select className={inputClass} value={packageId} onChange={(e) => setPackageId(e.target.value)}>
-              <option value="">—</option>
-              {ctx.packages.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {nameOf(p)} — {formatMoney(p.offerPriceHalalas, locale)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            className={buttonStyles.secondary}
-            disabled={!packageId}
-            onClick={() => {
-              const p = ctx.packages.find((x) => x.id === packageId)!
-              onAdd({ key: newKey(), kind: 'package', packageId, visitIndexes: Array.from({ length: p.visitsCount }, (_, i) => i), manualPrice: '', manualReason: '' })
-              setPackageId('')
-            }}
-          >
-            {t('wizard.add')}
-          </button>
-        </div>
-      </div>
+        {added && (
+          <p role="status" className="text-sm text-success">
+            {t('wizard.addedLine', { name: added })}
+          </p>
+        )}
+        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2" role="tabpanel">
+          {category === '__packages'
+            ? ctx.packages.map((p) => (
+                <li key={p.id} className="flex flex-col gap-1 rounded-xl border border-line p-3">
+                  <span className="font-semibold text-ink">{nameOf(p)}</span>
+                  <span className="text-xs text-muted">
+                    {t('wizard.packageMeta', { visits: p.visitsCount, persons: p.personsCount, minutes: p.visitDurationMinutes })}
+                  </span>
+                  <PriceLine base={p.basePriceHalalas} offer={p.offerPriceHalalas} />
+                  <button
+                    type="button"
+                    className={buttonStyles.secondary}
+                    onClick={() => {
+                      onAdd({ key: newKey(), kind: 'package', packageId: p.id, visitIndexes: Array.from({ length: p.visitsCount }, (_, i) => i), manualPrice: '', manualReason: '' })
+                      setAdded(nameOf(p))
+                    }}
+                  >
+                    {t('wizard.add')}
+                  </button>
+                </li>
+              ))
+            : ctx.services
+                .filter((sv) => sv.categoryCode === category)
+                .map((sv) => (
+                  <li key={sv.id} className="flex flex-col gap-1 rounded-xl border border-line p-3">
+                    <span className="font-semibold text-ink">{nameOf(sv)}</span>
+                    <span className="text-xs text-muted">{t('orders.minutes', { n: sv.durationMinutes })}</span>
+                    <PriceLine base={sv.basePriceHalalas} offer={sv.offerPriceHalalas} />
+                    <button
+                      type="button"
+                      className={buttonStyles.secondary}
+                      onClick={() => {
+                        onAdd({ key: newKey(), kind: 'service', serviceId: sv.id, beneficiaryIndex: 1, visitIndex: 0, specialistId: null, manualPrice: '', manualReason: '' })
+                        setAdded(nameOf(sv))
+                      }}
+                    >
+                      {t('wizard.add')}
+                    </button>
+                  </li>
+                ))}
+        </ul>
+      </section>
 
       {ctx.permissions.custom && (
         <details className="rounded-xl border border-dashed border-line p-3">
@@ -956,5 +965,22 @@ function ServicesStep({
         </button>
       </div>
     </div>
+  )
+}
+
+/** Base price struck through when an offer applies; the offer is what the booking starts from. */
+function PriceLine({ base, offer }: { base: number; offer: number }) {
+  const { t, locale } = useI18n()
+  return (
+    <span className="text-sm">
+      {offer < base && (
+        <>
+          <s className="text-muted" aria-label={t('wizard.basePrice')}>
+            {formatMoney(base, locale)}
+          </s>{' '}
+        </>
+      )}
+      <strong className="text-ink">{formatMoney(offer, locale)}</strong>
+    </span>
   )
 }
