@@ -511,7 +511,6 @@ const en: Dictionary = {
       hint: 'The system sends messages itself from the business WhatsApp number linked to UltraMsg.',
       connected: 'UltraMsg connected',
       notConnected: 'UltraMsg not connected (keys are missing on the server)',
-      risk: 'Warning: UltraMsg is an unofficial service that links the number like WhatsApp Web. WhatsApp may restrict or ban the number. Use a dedicated number for the system and do not send promotional messages.',
       enable: 'Turn on automatic sending',
       kinds: 'Messages sent automatically',
       rules: 'Only messages that become due after switching on are sent (no old messages), a few seconds apart, never to test orders or customers. A message a staff member opened stays with her. If sending fails, the message returns to manual sending with a notification.',

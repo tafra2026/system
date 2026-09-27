@@ -186,7 +186,6 @@ export function AutoWhatsappForm({ value, configured }: { value: { enabled: bool
         <Badge tone={configured ? 'success' : 'warning'}>{configured ? t('settings.autoWa.connected') : t('settings.autoWa.notConnected')}</Badge>
         <Badge tone={value.enabled ? 'success' : 'neutral'}>{value.enabled ? t('settings.on') : t('settings.off')}</Badge>
       </div>
-      <p className="rounded-xl border border-warning/30 bg-warning-soft px-3 py-2 text-sm text-ink">{t('settings.autoWa.risk')}</p>
       <form action={action} className="flex flex-col gap-3">
         <label className="flex min-h-11 items-center gap-2 text-sm font-semibold text-ink">
           <input type="checkbox" name="enabled" defaultChecked={value.enabled} className="h-5 w-5 accent-[var(--color-brand-deep)]" />
