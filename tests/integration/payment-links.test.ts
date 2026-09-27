@@ -103,7 +103,7 @@ describe('creating links', () => {
     expect(wa.text).toContain('سارة')
     expect(wa.link.startsWith(`https://wa.me/${customer.phoneE164.slice(1)}?text=`)).toBe(true)
 
-    await expect(createPaymentLink(mod.actor, { provider: 'tabby', phone: customer.phoneE164, amountHalalas: 1000, idempotencyKey: 'k-tabby-0001' })).rejects.toMatchObject({ code: 'provider_integration_pending' })
+    await expect(createPaymentLink(mod.actor, { provider: 'tabby', phone: customer.phoneE164, amountHalalas: 1000, idempotencyKey: 'k-tabby-0001' })).rejects.toMatchObject({ code: 'provider_not_configured' })
   })
 
   it('a timeout leaves the link "creating" (check before retrying), a rejection marks it failed', async () => {

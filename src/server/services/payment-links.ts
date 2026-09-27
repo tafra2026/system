@@ -8,8 +8,10 @@ import { whatsappChatLink } from '@/domain/messages'
 import { authorize, type Actor } from '../authz/actor'
 import { writeAudit } from '../audit'
 import { getDb, type Executor } from '../db'
-import { customers, orders, paymentLinkEvents, paymentLinks, payments, type PaymentLink } from '../db/schema'
+import { customerAddresses, customers, orders, paymentLinkEvents, paymentLinks, payments, type PaymentLink } from '../db/schema'
 import { createIntention, paymobConfigured, paymobHmacSecret, paymobIntegrations, PAYMOB_METHODS, type PaymobMethod } from '../integrations/paymob'
+import { captureTabbyPayment, createTabbyCheckout, getTabbyPayment, tabbyConfigured } from '../integrations/tabby'
+import { authoriseTamaraOrder, captureTamaraOrder, createTamaraCheckout, getTamaraOrder, tamaraConfigured } from '../integrations/tamara'
 import { orderBalance, syncCommissions } from './commissions'
 import { NotFoundError, ValidationError } from './errors'
 import { notifyPaymentDecision } from './notifications'
@@ -38,10 +40,8 @@ export interface ProviderState {
 export function providerStates(): ProviderState[] {
   return [
     { provider: 'paymob', configured: paymobConfigured(), methods: [...paymobIntegrations().keys()], ...(paymobConfigured() ? {} : { missing: 'keys' as const }) },
-    // Tabby and Tamara stay manual (recorded with a reference) until their direct integrations
-    // are built with the merchant accounts and official docs (docs/INTEGRATIONS.ar.md).
-    { provider: 'tabby', configured: false, methods: [], missing: 'integration_pending' },
-    { provider: 'tamara', configured: false, methods: [], missing: 'integration_pending' },
+    { provider: 'tabby', configured: tabbyConfigured(), methods: [], ...(tabbyConfigured() ? {} : { missing: 'keys' as const }) },
+    { provider: 'tamara', configured: tamaraConfigured(), methods: [], ...(tamaraConfigured() ? {} : { missing: 'keys' as const }) },
   ]
 }
 
@@ -101,6 +101,8 @@ export async function createPaymentLink(actor: Actor, raw: unknown): Promise<Cre
     const [dup] = await tx.select().from(paymentLinks).where(eq(paymentLinks.idempotencyKey, input.idempotencyKey))
     if (dup) return { dup }
     let orderRef: string | null = null
+    let locale: 'ar' | 'en' = 'ar'
+    let address: { city: string; line: string } | null = null
     if (input.orderId) {
       const [o] = await tx.select().from(orders).where(eq(orders.id, input.orderId)).for('update')
       if (!o) throw new NotFoundError()
@@ -111,6 +113,12 @@ export async function createPaymentLink(actor: Actor, raw: unknown): Promise<Cre
         throw new ValidationError('validation_failed', { amountHalalas: 'link_exceeds_due' })
       }
       orderRef = o.reference
+      const [c] = await tx.select({ locale: customers.messageLocale }).from(customers).where(eq(customers.id, o.customerId))
+      locale = c?.locale ?? 'ar'
+      if (o.addressId) {
+        const [a] = await tx.select({ district: customerAddresses.district, line: customerAddresses.addressLine }).from(customerAddresses).where(eq(customerAddresses.id, o.addressId))
+        if (a) address = { city: 'Jeddah', line: [a.district, a.line].filter(Boolean).join(', ') }
+      }
     }
     const [link] = await tx
       .insert(paymentLinks)
@@ -129,22 +137,36 @@ export async function createPaymentLink(actor: Actor, raw: unknown): Promise<Cre
       })
       .returning()
     await writeAudit(tx, { actorUserId: actor.userId, action: 'payment_link.create', entityType: 'order', entityId: input.orderId ?? link!.id, after: { link: link!.id, provider: input.provider, amountHalalas: input.amountHalalas } })
-    return { link: link! }
+    return { link: link!, locale, address, orderRef }
   })
   if ('dup' in prepared && prepared.dup) return toCreated(prepared.dup)
   const link = prepared.link!
 
   // Step 2: the provider call, outside any transaction.
-  const res = await createIntention({
-    reference: link.reference,
-    amountHalalas: link.amountHalalas,
-    methods: useMethods,
-    customerName: link.customerName,
-    phoneE164: link.customerPhoneE164,
-    description: link.description ?? 'Pamper Me',
-    notificationUrl: `${publicBaseUrl()}/api/payments/paymob/webhook`,
-    redirectionUrl: `${publicBaseUrl()}/pay/return`,
-  })
+  const base = publicBaseUrl()
+  const common = { reference: link.reference, amountHalalas: link.amountHalalas, customerName: link.customerName, phoneE164: link.customerPhoneE164, description: link.description ?? 'Pamper Me' }
+  const res =
+    input.provider === 'tabby'
+      ? await createTabbyCheckout({
+          ...common,
+          locale: prepared.locale!,
+          address: prepared.address ?? null,
+          successUrl: `${base}/pay/return?provider=tabby`,
+          cancelUrl: `${base}/pay/return?provider=tabby&result=cancel`,
+          failureUrl: `${base}/pay/return?provider=tabby&result=failure`,
+        })
+      : input.provider === 'tamara'
+        ? await createTamaraCheckout({
+            ...common,
+            orderNumber: prepared.orderRef ?? link.reference,
+            locale: prepared.locale!,
+            address: prepared.address ?? null,
+            successUrl: `${base}/pay/return?provider=tamara`,
+            failureUrl: `${base}/pay/return?provider=tamara&result=failure`,
+            cancelUrl: `${base}/pay/return?provider=tamara&result=cancel`,
+            notificationUrl: `${base}/api/payments/tamara/webhook`,
+          })
+        : await createIntention({ ...common, methods: useMethods, notificationUrl: `${base}/api/payments/paymob/webhook`, redirectionUrl: `${base}/pay/return` })
   const [updated] = await db
     .update(paymentLinks)
     .set(
@@ -208,7 +230,123 @@ export async function handlePaymobCallback(hmac: string | null, body: unknown): 
   })
 }
 
-async function applyOutcome(tx: Executor, link: PaymentLink, outcome: ProviderOutcome, txnId: string): Promise<string> {
+// ─────────────────────────────── Tabby & Tamara (verified by reading the provider API) ───────────────────────────────
+
+/** Money is only captured for a link that is still wanted (not cancelled, order not cancelled). */
+async function capturable(link: PaymentLink): Promise<boolean> {
+  if (!['open', 'creating', 'authorized'].includes(link.status)) return false
+  if (!link.orderId) return true
+  const [o] = await getDb().select({ status: orders.status }).from(orders).where(eq(orders.id, link.orderId))
+  return !!o && o.status !== 'cancelled' && o.status !== 'draft'
+}
+
+async function recordVerified(provider: 'tabby' | 'tamara', providerId: string, outcome: Outcome, check: { ok: boolean }, summary: Record<string, unknown>): Promise<string> {
+  return getDb().transaction(async (tx) => {
+    const eventKey = `${provider}:${providerId}:${check.ok ? outcome : 'amount_mismatch'}`
+    const [seen] = await tx.select({ id: paymentLinkEvents.id }).from(paymentLinkEvents).where(eq(paymentLinkEvents.eventKey, eventKey))
+    if (seen) return 'duplicate'
+    const [link] = await tx.select().from(paymentLinks).where(and(eq(paymentLinks.provider, provider), eq(paymentLinks.providerRef, providerId))).for('update')
+    const record = (result: string) => tx.insert(paymentLinkEvents).values({ provider, linkId: link?.id ?? null, eventKey, verified: true, outcome: result, summary }).onConflictDoNothing()
+    if (!link) {
+      await record('unknown_link')
+      return 'unknown_link'
+    }
+    if (!check.ok) {
+      await record('amount_mismatch')
+      await tx.update(paymentLinks).set({ needsSettlement: true, settlementNote: 'amount_mismatch', providerStatus: String(summary.status ?? ''), updatedAt: new Date() }).where(eq(paymentLinks.id, link.id))
+      return 'amount_mismatch'
+    }
+    const result = await applyOutcome(tx, link, outcome, providerId)
+    await record(result)
+    return result
+  })
+}
+
+/**
+ * Tabby: read the payment from Tabby (the notification body is never trusted), check it
+ * matches our link, capture the full amount if it is only authorized, then record the result.
+ */
+export async function syncTabbyPayment(paymentId: string): Promise<string> {
+  if (!tabbyConfigured() || typeof paymentId !== 'string') return 'not_configured'
+  const [link] = await getDb().select().from(paymentLinks).where(and(eq(paymentLinks.provider, 'tabby'), eq(paymentLinks.providerRef, paymentId)))
+  if (!link) return 'unknown_link'
+  let p = await getTabbyPayment(paymentId)
+  if (!p) return 'unverified'
+  const matches = () => !!p && p.reference === link.reference && p.currency === 'SAR' && p.amountHalalas === link.amountHalalas
+  if (matches() && p.status === 'AUTHORIZED' && p.capturedHalalas === 0 && (await capturable(link))) {
+    if (await captureTabbyPayment(paymentId, link.amountHalalas, `${link.reference}-capture`)) p = (await getTabbyPayment(paymentId)) ?? p
+  }
+  const outcome: Outcome =
+    p.refundedHalalas > 0
+      ? 'refunded'
+      : p.capturedHalalas >= link.amountHalalas && (p.status === 'CLOSED' || p.status === 'AUTHORIZED')
+        ? 'paid'
+        : p.status === 'AUTHORIZED'
+          ? 'authorized'
+          : p.status === 'REJECTED' || p.status === 'EXPIRED'
+            ? 'expired'
+            : 'pending'
+  return recordVerified('tabby', paymentId, outcome, { ok: matches() }, { status: p.status, amount_halalas: p.amountHalalas, captured_halalas: p.capturedHalalas, refunded_halalas: p.refundedHalalas, reference: p.reference })
+}
+
+/**
+ * Tamara: read the order from Tamara, check it matches our link; an approved order is
+ * authorised and then captured in full; only then is the payment recorded.
+ */
+export async function syncTamaraOrder(orderId: string): Promise<string> {
+  if (!tamaraConfigured() || typeof orderId !== 'string') return 'not_configured'
+  const [link] = await getDb().select().from(paymentLinks).where(and(eq(paymentLinks.provider, 'tamara'), eq(paymentLinks.providerRef, orderId)))
+  if (!link) return 'unknown_link'
+  let o = await getTamaraOrder(orderId)
+  if (!o) return 'unverified'
+  const matches = () => !!o && o.reference === link.reference && o.currency === 'SAR' && o.amountHalalas === link.amountHalalas
+  if (matches() && (await capturable(link))) {
+    if (o.status === 'approved' && (await authoriseTamaraOrder(orderId))) o = (await getTamaraOrder(orderId)) ?? o
+    if (o.status === 'authorised' && (await captureTamaraOrder(orderId, link.amountHalalas))) o = (await getTamaraOrder(orderId)) ?? o
+  }
+  const st = o.status
+  const outcome: Outcome =
+    st.includes('refunded')
+      ? 'refunded'
+      : st === 'fully_captured'
+        ? 'paid'
+        : st === 'approved' || st === 'authorised' || st === 'partially_captured'
+          ? 'authorized'
+          : st === 'declined' || st === 'expired' || st === 'canceled' || st === 'cancelled'
+            ? 'expired'
+            : 'pending'
+  return recordVerified('tamara', orderId, outcome, { ok: matches() }, { status: st, amount_halalas: o.amountHalalas, reference: o.reference })
+}
+
+/**
+ * Safety net for missed notifications: the worker re-checks recent open Tabby/Tamara links
+ * (at most every 5 minutes each, for 3 days).
+ */
+export async function syncOpenBnplLinks(now = new Date()): Promise<number> {
+  const rows = await getDb()
+    .select({ id: paymentLinks.id, provider: paymentLinks.provider, ref: paymentLinks.providerRef })
+    .from(paymentLinks)
+    .where(
+      and(
+        inArray(paymentLinks.provider, ['tabby', 'tamara']),
+        inArray(paymentLinks.status, ['open', 'authorized']),
+        sql`${paymentLinks.providerRef} IS NOT NULL`,
+        sql`${paymentLinks.updatedAt} < ${new Date(now.getTime() - 5 * 60_000)}`,
+        sql`${paymentLinks.createdAt} > ${new Date(now.getTime() - 3 * 86_400_000)}`,
+      ),
+    )
+    .limit(10)
+  for (const r of rows) {
+    await getDb().update(paymentLinks).set({ updatedAt: now }).where(eq(paymentLinks.id, r.id))
+    if (r.provider === 'tabby' && tabbyConfigured()) await syncTabbyPayment(r.ref!)
+    if (r.provider === 'tamara' && tamaraConfigured()) await syncTamaraOrder(r.ref!)
+  }
+  return rows.length
+}
+
+type Outcome = ProviderOutcome | 'expired'
+
+async function applyOutcome(tx: Executor, link: PaymentLink, outcome: Outcome, txnId: string): Promise<string> {
   const now = new Date()
   const base = { providerStatus: outcome, providerTxnId: txnId, updatedAt: now }
   if (link.status === 'paid' || link.status === 'refunded') {
@@ -229,8 +367,14 @@ async function applyOutcome(tx: Executor, link: PaymentLink, outcome: ProviderOu
     return outcome
   }
   if (outcome === 'authorized') {
-    await tx.update(paymentLinks).set({ ...base, status: 'authorized' }).where(eq(paymentLinks.id, link.id))
+    // A cancelled link keeps its status: the hold is not captured and lapses at the provider.
+    await tx.update(paymentLinks).set({ ...base, status: link.status === 'cancelled' ? 'cancelled' : 'authorized' }).where(eq(paymentLinks.id, link.id))
     return 'authorized'
+  }
+  if (outcome === 'expired') {
+    // Declined, rejected or expired at the provider: this checkout cannot be paid any more.
+    await tx.update(paymentLinks).set({ ...base, status: link.status === 'cancelled' ? 'cancelled' : 'expired' }).where(eq(paymentLinks.id, link.id))
+    return 'expired'
   }
   if (outcome === 'refunded') {
     await tx.update(paymentLinks).set({ ...base, status: 'refunded' }).where(eq(paymentLinks.id, link.id))
@@ -257,7 +401,7 @@ async function applyOutcome(tx: Executor, link: PaymentLink, outcome: ProviderOu
 async function applyToOrder(tx: Executor, link: PaymentLink, txnId: string): Promise<string | null> {
   const [o] = await tx.select().from(orders).where(eq(orders.id, link.orderId!)).for('update')
   if (!o || o.status === 'draft' || o.status === 'cancelled') return null
-  const key = `paymob:${txnId}`
+  const key = `${link.provider}:${txnId}`
   const [dup] = await tx.select({ id: payments.id }).from(payments).where(eq(payments.idempotencyKey, key))
   if (dup) return dup.id
   const bal = await orderBalance(tx, o.id)
@@ -266,7 +410,7 @@ async function applyToOrder(tx: Executor, link: PaymentLink, txnId: string): Pro
     .insert(payments)
     .values({
       orderId: o.id,
-      method: 'paymob',
+      method: link.provider,
       amountHalalas: link.amountHalalas,
       status: 'confirmed',
       receivedAt: new Date(),
@@ -277,7 +421,7 @@ async function applyToOrder(tx: Executor, link: PaymentLink, txnId: string): Pro
       notes: link.reference,
     })
     .returning()
-  await writeAudit(tx, { actorUserId: null, action: 'payment.record', entityType: 'order', entityId: o.id, after: { payment: p!.id, method: 'paymob', amountHalalas: p!.amountHalalas, status: 'confirmed', link: link.id } })
+  await writeAudit(tx, { actorUserId: null, action: 'payment.record', entityType: 'order', entityId: o.id, after: { payment: p!.id, method: link.provider, amountHalalas: p!.amountHalalas, status: 'confirmed', link: link.id } })
   await syncCommissions(tx, o.id)
   await notifyPaymentDecision(tx, { orderId: o.id, amountHalalas: p!.amountHalalas, recordedByUserId: link.createdByUserId }, true, null)
   return p!.id

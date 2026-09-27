@@ -3,6 +3,7 @@ import { purgeExpiredSessions } from './auth/sessions'
 import { getDb } from './db'
 import { deliverPendingPushes } from './push'
 import { autoSendDueMessages } from './services/auto-messages'
+import { syncOpenBnplLinks } from './services/payment-links'
 import { createDueMessageNotifications, purgeOldNotifications } from './services/notifications'
 
 /** Arbitrary constant: only one worker tick runs at a time, even with several workers. */
@@ -18,6 +19,11 @@ export async function runWorkerTick(now = new Date()) {
     await autoSendDueMessages(now)
   } catch (err) {
     console.error('Automatic WhatsApp pass failed:', err instanceof Error ? err.name : 'unknown')
+  }
+  try {
+    await syncOpenBnplLinks(now)
+  } catch (err) {
+    console.error('Tabby/Tamara re-check failed:', err instanceof Error ? err.name : 'unknown')
   }
   return getDb().transaction(async (tx) => {
     const [lock] = await tx.execute<{ ok: boolean }>(sql`SELECT pg_try_advisory_xact_lock(${WORKER_LOCK}) AS ok`).then((r) => r.rows)

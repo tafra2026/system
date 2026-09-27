@@ -75,7 +75,7 @@ export function NewLinkForm({ providers, defaults }: { providers: ProviderState[
         </div>
       )}
       {created?.status === 'creating' && <Alert tone="warning">{t('paymentLinks.creatingUnknown')}</Alert>}
-      {created?.status === 'failed' && <Alert tone="error">{t('paymentLinks.failed')}</Alert>}
+      {created?.status === 'failed' && <Alert tone="error">{created.errorCode === 'not_eligible' ? t('paymentLinks.notEligible') : t('paymentLinks.failed')}</Alert>}
 
       <Field label={t('paymentLinks.phone')} name="phone" error={fieldError('phone')}>
         {(p) => <input {...p} defaultValue={defaults?.phone ?? ''} className={`${inputClass} ltr-data`} dir="ltr" inputMode="tel" autoComplete="off" required placeholder="05xxxxxxxx" />}
@@ -99,15 +99,16 @@ export function NewLinkForm({ providers, defaults }: { providers: ProviderState[
         <legend className="mb-1 text-sm font-semibold text-ink">{t('paymentLinks.provider')}</legend>
         <div className="flex flex-wrap gap-2">
           {providers.map((p) => (
-            <label key={p.provider} className={`flex min-h-11 items-center gap-2 rounded-xl border px-3 text-sm ${provider === p.provider ? 'border-brand-deep bg-brand-soft' : 'border-line'} ${p.configured ? '' : 'opacity-70'}`}>
-              <input type="radio" name="provider" value={p.provider} checked={provider === p.provider} onChange={() => setProvider(p.provider)} className="h-5 w-5 accent-[var(--color-brand-deep)]" />
-              <span>
-                {t(`paymentLinks.providers.${p.provider}`)}
-                {!p.configured && <span className="block text-xs text-muted">{p.missing === 'integration_pending' ? t('paymentLinks.integrationPending') : t('paymentLinks.notConfigured')}</span>}
-              </span>
+            <label
+              key={p.provider}
+              className={`flex min-h-11 cursor-pointer items-center rounded-full border px-4 text-sm font-semibold has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-brand-deep ${provider === p.provider ? 'border-brand-deep bg-brand-soft text-brand-deep' : 'border-line bg-surface text-ink'} ${p.configured ? '' : 'opacity-70'}`}
+            >
+              <input type="radio" name="provider" value={p.provider} checked={provider === p.provider} onChange={() => setProvider(p.provider)} className="sr-only" />
+              {t(`paymentLinks.providers.${p.provider}`)}
             </label>
           ))}
         </div>
+        {current && !current.configured && <p className="text-xs text-muted">{t('paymentLinks.notConfigured')}</p>}
       </fieldset>
       {current?.configured && current.methods.length > 0 && (
         <fieldset className="flex flex-col gap-1">
@@ -127,6 +128,7 @@ export function NewLinkForm({ providers, defaults }: { providers: ProviderState[
         {(p) => <input {...p} className={inputClass} dir="auto" maxLength={250} />}
       </Field>
       <SubmitButton>{t('paymentLinks.create')}</SubmitButton>
+      <p className="rounded-xl border border-warning/30 bg-warning-soft px-3 py-2 text-sm text-ink">{t(`paymentLinks.providerNotes.${provider}`)}</p>
     </form>
   )
 }
