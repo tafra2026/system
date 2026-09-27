@@ -136,3 +136,13 @@ export async function resolveLocationAction(text: string): Promise<ActionState<{
     return c
   })
 }
+
+/** Suggest the district for a picked map point (pre-fills the field; staff can change it). */
+export async function districtForPointAction(lat: number, lng: number, locale: 'ar' | 'en'): Promise<ActionState<string | null>> {
+  const { authorize } = await import('@/server/authz/actor')
+  const { districtForPoint } = await import('@/server/integrations/reverse-geocode')
+  return runAction(async (actor) => {
+    authorize(actor, 'customers.manage')
+    return districtForPoint(Number(lat), Number(lng), locale === 'en' ? 'en' : 'ar')
+  })
+}

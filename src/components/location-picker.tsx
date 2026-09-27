@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { resolveLocationAction } from '@/app/(app)/customers/actions'
+import { districtForPointAction, resolveLocationAction } from '@/app/(app)/customers/actions'
+import 'leaflet/dist/leaflet.css'
 import { useI18n } from './i18n-provider'
 import { useMapsKey } from './maps-key'
 import { inputClass } from './form-styles'
@@ -82,6 +83,7 @@ export function LocationPicker({ name, defaultValue, error }: { name: string; de
           marker.setMap(map)
           setPin(p)
           setText(fmt(p))
+          suggestDistrict(p)
         }
         map.addListener('click', (e) => e.latLng && place({ lat: e.latLng.lat(), lng: e.latLng.lng() }))
         marker.addListener('dragend', (e) => e.latLng && place({ lat: e.latLng.lat(), lng: e.latLng.lng() }))
@@ -96,6 +98,55 @@ export function LocationPicker({ name, defaultValue, error }: { name: string; de
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showMap, key])
 
+  // No Google key: a free OpenStreetMap map (Leaflet), loaded only when opened.
+  const osmRef = useRef<{ map: import('leaflet').Map; marker: import('leaflet').Marker | null; L: typeof import('leaflet') } | null>(null)
+  useEffect(() => {
+    if (!showMap || key || !box.current) return
+    let cancelled = false
+    let map: import('leaflet').Map | null = null
+    import('leaflet')
+      .then(({ default: L }) => {
+        if (cancelled || !box.current) return
+        map = L.map(box.current, { center: pin ?? JEDDAH, zoom: pin ? 17 : 11 })
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map)
+        const icon = L.divIcon({ className: 'pm-pin', html: '<span></span>', iconSize: [28, 40], iconAnchor: [14, 40] })
+        const state = { map, marker: null as import('leaflet').Marker | null, L }
+        const place = (p: LatLngLiteral) => {
+          if (!state.marker) {
+            state.marker = L.marker(p, { draggable: true, icon }).addTo(state.map)
+            state.marker.on('dragend', () => {
+              const ll = state.marker!.getLatLng()
+              place({ lat: ll.lat, lng: ll.lng })
+            })
+          } else state.marker.setLatLng(p)
+          setPin(p)
+          setText(fmt(p))
+          suggestDistrict(p)
+        }
+        if (pin) place(pin)
+        map.on('click', (e) => place({ lat: e.latlng.lat, lng: e.latlng.lng }))
+        osmRef.current = state
+      })
+      .catch(() => setStatus('map_error'))
+    return () => {
+      cancelled = true
+      map?.remove()
+      osmRef.current = null
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showMap, key])
+
+  /** Fill the district field (only if still empty) from the picked point. */
+  const suggestDistrict = async (p: LatLngLiteral) => {
+    const field = box.current?.closest('form')?.querySelector<HTMLInputElement>('input[name="district"]')
+    if (!field || field.value.trim()) return
+    const r = await districtForPointAction(p.lat, p.lng, locale).catch(() => null)
+    if (r?.ok && r.data && !field.value.trim()) {
+      field.value = r.data
+      field.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+  }
+
   const applyPin = (p: LatLngLiteral) => {
     setPin(p)
     setText(fmt(p))
@@ -104,6 +155,12 @@ export function LocationPicker({ name, defaultValue, error }: { name: string; de
       markerRef.current.setMap(mapRef.current)
       mapRef.current.setCenter(p)
       mapRef.current.setZoom(17)
+    }
+    const o = osmRef.current
+    if (o) {
+      if (o.marker) o.marker.setLatLng(p)
+      else o.marker = o.L.marker(p, { draggable: true, icon: o.L.divIcon({ className: 'pm-pin', html: '<span></span>', iconSize: [28, 40], iconAnchor: [14, 40] }) }).addTo(o.map)
+      o.map.setView(p, 17)
     }
   }
 
@@ -146,22 +203,18 @@ export function LocationPicker({ name, defaultValue, error }: { name: string; de
       </div>
       {status === 'unresolved' && <p className="text-sm text-warning">{t('map.unresolved')}</p>}
       {error && <p className="text-sm text-danger">{error}</p>}
-      {key ? (
-        showMap ? (
-          <>
-            <div ref={box} className="h-72 w-full overflow-hidden rounded-xl border border-line bg-cream" role="application" aria-label={t('map.label')} />
-            <p className="text-xs text-muted">{t('map.tapHint')}</p>
-            {status === 'map_error' && <p className="text-sm text-warning">{t('map.loadError')}</p>}
-          </>
-        ) : (
-          <div>
-            <button type="button" className={buttonStyles.secondary} onClick={() => setShowMap(true)}>
-              {pin ? t('map.adjustPin') : t('map.pickOnMap')}
-            </button>
-          </div>
-        )
+      {showMap ? (
+        <>
+          <div ref={box} dir="ltr" className="relative z-0 h-80 w-full overflow-hidden rounded-xl border border-line bg-cream" role="application" aria-label={t('map.label')} />
+          <p className="text-xs text-muted">{t('map.tapHint')}</p>
+          {status === 'map_error' && <p className="text-sm text-warning">{t('map.loadError')}</p>}
+        </>
       ) : (
-        <p className="text-xs text-muted">{t('map.noKey')}</p>
+        <div>
+          <button type="button" className={buttonStyles.secondary} onClick={() => setShowMap(true)}>
+            {pin ? t('map.adjustPin') : t('map.pickOnMap')}
+          </button>
+        </div>
       )}
       {pin && (
         <p className="flex flex-wrap items-center gap-2 text-xs text-muted">
@@ -173,6 +226,10 @@ export function LocationPicker({ name, defaultValue, error }: { name: string; de
             setPin(null)
             setText('')
             markerRef.current?.setMap(null)
+            if (osmRef.current?.marker) {
+              osmRef.current.marker.remove()
+              osmRef.current.marker = null
+            }
           }}>
             {t('map.clear')}
           </button>

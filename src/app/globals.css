@@ -54,3 +54,17 @@ body {
     transition: none !important;
   }
 }
+
+/* Map pin for the free OpenStreetMap picker (no image files needed). */
+.pm-pin span {
+  position: absolute;
+  inset-inline-start: 0;
+  top: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50% 50% 50% 0;
+  background: var(--color-brand-deep);
+  border: 3px solid #fff;
+  transform: rotate(-45deg);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.35);
+}
