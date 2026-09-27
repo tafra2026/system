@@ -5,7 +5,7 @@ import { Field, FormStatus, inputClass, SubmitButton, useFieldErrors } from '@/c
 import { useI18n } from '@/components/i18n-provider'
 import { Badge } from '@/components/ui'
 import type { ActionState } from '@/server/actions'
-import { setBusinessContactAction, setBufferAction, setDaysOffAction, setMessageOptionsAction, setMessageTemplatesAction, setStartPointAction, setVipPackagesAction } from './actions'
+import { autoWhatsappTestAction, setAutoWhatsappAction, setBusinessContactAction, setBufferAction, setDaysOffAction, setMessageOptionsAction, setMessageTemplatesAction, setStartPointAction, setVipPackagesAction } from './actions'
 import { DEFAULT_MESSAGE_TEMPLATES, MESSAGE_KINDS, MESSAGE_PLACEHOLDERS, type MessageKind, type MessageLocale } from '@/domain/messages'
 
 const initial = { ok: false } as ActionState<never>
@@ -172,5 +172,50 @@ export function BusinessContactForm({ value }: { value: { phone?: string; email?
         <SubmitButton variant="secondary">{t('common.save')}</SubmitButton>
       </div>
     </form>
+  )
+}
+
+/** Automatic WhatsApp sending (UltraMsg, D81): master switch, message types, and a test message. */
+export function AutoWhatsappForm({ value, configured }: { value: { enabled: boolean; kinds: MessageKind[]; since: string | null }; configured: boolean }) {
+  const { t } = useI18n()
+  const [state, action] = useActionState(setAutoWhatsappAction, initial)
+  const [testState, testAction] = useActionState(autoWhatsappTestAction, initial)
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge tone={configured ? 'success' : 'warning'}>{configured ? t('settings.autoWa.connected') : t('settings.autoWa.notConnected')}</Badge>
+        <Badge tone={value.enabled ? 'success' : 'neutral'}>{value.enabled ? t('settings.on') : t('settings.off')}</Badge>
+      </div>
+      <p className="rounded-xl border border-warning/30 bg-warning-soft px-3 py-2 text-sm text-ink">{t('settings.autoWa.risk')}</p>
+      <form action={action} className="flex flex-col gap-3">
+        <label className="flex min-h-11 items-center gap-2 text-sm font-semibold text-ink">
+          <input type="checkbox" name="enabled" defaultChecked={value.enabled} className="h-5 w-5 accent-[var(--color-brand-deep)]" />
+          {t('settings.autoWa.enable')}
+        </label>
+        <fieldset className="flex flex-col gap-1">
+          <legend className="mb-1 text-sm font-medium text-ink">{t('settings.autoWa.kinds')}</legend>
+          {MESSAGE_KINDS.map((k) => (
+            <label key={k} className="flex min-h-11 items-center gap-2 text-sm text-ink">
+              <input type="checkbox" name={`kind_${k}`} defaultChecked={value.kinds.includes(k)} className="h-5 w-5 accent-[var(--color-brand-deep)]" />
+              {t(`messages.kinds.${k}`)}
+            </label>
+          ))}
+        </fieldset>
+        <p className="text-xs text-muted">{t('settings.autoWa.rules')}</p>
+        <FormStatus state={state} successText={t('common.saved')} />
+        <div>
+          <SubmitButton variant="secondary">{t('common.save')}</SubmitButton>
+        </div>
+      </form>
+      <form action={testAction} className="flex flex-col gap-2 border-t border-line pt-4">
+        <Field label={t('settings.autoWa.testPhone')} name="phone">
+          {(p) => <input {...p} inputMode="tel" className={`${inputClass} ltr-data`} dir="ltr" placeholder="05xxxxxxxx" maxLength={20} required />}
+        </Field>
+        <FormStatus state={testState} successText={t('settings.autoWa.testSent')} />
+        <div>
+          <SubmitButton variant="secondary">{t('settings.autoWa.sendTest')}</SubmitButton>
+        </div>
+      </form>
+    </div>
   )
 }

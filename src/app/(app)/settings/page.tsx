@@ -4,7 +4,8 @@ import { createTranslator } from '@/i18n'
 import { pagePermission } from '@/server/auth/current'
 import { mapsConfigured } from '@/server/integrations/google-routes'
 import { getAllSettings } from '@/server/services/settings'
-import { BusinessContactForm, BufferForm, DaysOffForm, MessageOptionsForm, MessageTemplatesForm, StartPointForm, VipPackagesForm } from './settings-forms'
+import { ultramsgConfigured } from '@/server/integrations/ultramsg'
+import { AutoWhatsappForm, BusinessContactForm, BufferForm, DaysOffForm, MessageOptionsForm, MessageTemplatesForm, StartPointForm, VipPackagesForm } from './settings-forms'
 
 export default async function SettingsPage() {
   const { actor, allowed } = await pagePermission('settings.manage')
@@ -29,6 +30,9 @@ export default async function SettingsPage() {
       </Card>
       <Card title={t('settings.messagesTitle')} subtitle={t('settings.messagesHint')}>
         <MessageOptionsForm reviewLink={s.review_link} sender={s.on_the_way_sender} />
+      </Card>
+      <Card title={t('settings.autoWa.title')} subtitle={t('settings.autoWa.hint')}>
+        <AutoWhatsappForm value={s.auto_whatsapp} configured={ultramsgConfigured()} />
       </Card>
       <Card title={t('settings.templatesTitle')}>
         <MessageTemplatesForm custom={s.message_templates} />

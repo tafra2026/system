@@ -4,7 +4,9 @@ import { revalidatePath } from 'next/cache'
 import { coordinatesFromInput, isShortMapsLink } from '@/server/integrations/maps-links'
 import { formString, runAction, type ActionState } from '@/server/actions'
 import { ValidationError } from '@/server/services/errors'
+import { DomainError } from '@/domain/errors'
 import { setBooleanSetting, setSetting } from '@/server/services/settings'
+import { saveAutoWhatsappSettings, sendAutoTestMessage } from '@/server/services/auto-messages'
 import { DEFAULT_MESSAGE_TEMPLATES, MESSAGE_KINDS, unknownPlaceholders, type MessageKind, type MessageLocale } from '@/domain/messages'
 
 function done(r: ActionState<unknown>): ActionState {
@@ -84,6 +86,24 @@ export async function setBusinessContactAction(_prev: ActionState, form: FormDat
       const v = { phone: formString(form, 'phone').trim(), email: formString(form, 'email').trim(), website: formString(form, 'website').trim(), address: formString(form, 'address').trim() }
       const filled = Object.fromEntries(Object.entries(v).filter(([, x]) => x))
       await setSetting(actor, 'business_contact', Object.keys(filled).length ? filled : null)
+    }),
+  )
+}
+
+export async function setAutoWhatsappAction(_prev: ActionState, form: FormData): Promise<ActionState> {
+  return done(
+    await runAction(async (actor) => {
+      const kinds = MESSAGE_KINDS.filter((k) => form.get(`kind_${k}`) === 'on')
+      await saveAutoWhatsappSettings(actor, { enabled: form.get('enabled') === 'on', kinds })
+    }),
+  )
+}
+
+export async function autoWhatsappTestAction(_prev: ActionState, form: FormData): Promise<ActionState> {
+  return done(
+    await runAction(async (actor) => {
+      const r = await sendAutoTestMessage(actor, formString(form, 'phone'), actor.locale)
+      if (!r.ok) throw new DomainError(`auto_test_${r.code}`, { detail: r.detail ?? '—' })
     }),
   )
 }

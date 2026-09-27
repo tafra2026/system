@@ -147,7 +147,15 @@ export async function createDueMessageNotifications(tx: Executor, now = new Date
     .select({ t: messageTasks, reference: orders.reference, moderatorEmployeeId: orders.moderatorEmployeeId })
     .from(messageTasks)
     .innerJoin(orders, eq(orders.id, messageTasks.orderId))
-    .where(and(inArray(messageTasks.status, ['ready', 'opened']), isNull(messageTasks.notifiedAt), sql`${messageTasks.dueAt} <= ${now}`))
+    .where(
+      and(
+        inArray(messageTasks.status, ['ready', 'opened']),
+        isNull(messageTasks.notifiedAt),
+        sql`${messageTasks.dueAt} <= ${now}`,
+        // Being sent (or retried) automatically: staff are told only if that fails for good.
+        sql`coalesce(${messageTasks.autoState}, '') NOT IN ('sending', 'failed')`,
+      ),
+    )
     .for('update', { of: messageTasks, skipLocked: true })
     .limit(200)
   let created = 0

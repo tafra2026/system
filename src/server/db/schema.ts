@@ -942,9 +942,21 @@ export const messageTasks = pgTable(
     cancelReason: text('cancel_reason'),
     /** When the "message due" notification was created (by the background worker). */
     notifiedAt: timestamp('notified_at', { withTimezone: true }),
+    /**
+     * Automatic sending (D81): null = not tried; sending = claimed by the worker right now;
+     * failed = certainly not sent, retried at `autoNextAt`; gave_up = left for staff to send by hand;
+     * uncertain = may have been sent (timeout) — never retried automatically; sent = sent automatically.
+     */
+    autoState: text('auto_state'),
+    autoAttempts: integer('auto_attempts').notNull().default(0),
+    autoNextAt: timestamp('auto_next_at', { withTimezone: true }),
+    autoError: text('auto_error'),
+    autoProviderId: text('auto_provider_id'),
+    autoSentAt: timestamp('auto_sent_at', { withTimezone: true }),
     ...timestamps,
   },
   (t) => [
+    check('message_tasks_auto_state', sql`${t.autoState} IS NULL OR ${t.autoState} IN ('sending', 'failed', 'gave_up', 'uncertain', 'sent')`),
     uniqueIndex('message_tasks_dedupe_uq').on(t.dedupeKey).where(sql`${t.status} <> 'cancelled'`),
     index('message_tasks_status_due_idx').on(t.status, t.dueAt),
     index('message_tasks_order_idx').on(t.orderId),

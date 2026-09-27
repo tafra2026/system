@@ -32,6 +32,11 @@ export const SETTING_DEFAULTS = {
   on_the_way_sender: 'driver' as 'driver' | 'moderator',
   /** Shown on customer documents (only what management entered; nothing is invented). */
   business_contact: null as { phone?: string; email?: string; address?: string; website?: string } | null,
+  /**
+   * Automatic WhatsApp sending through UltraMsg (D81). Off by default. `since`: only tasks that
+   * became due after it was switched on are sent, so switching on never floods old messages.
+   */
+  auto_whatsapp: { enabled: false, kinds: [], since: null } as { enabled: boolean; kinds: MessageKind[]; since: string | null },
 }
 export type SettingKey = keyof typeof SETTING_DEFAULTS
 
@@ -53,6 +58,7 @@ export async function getAllSettings(actor: Actor) {
     review_link: await getSetting(db, 'review_link'),
     on_the_way_sender: await getSetting(db, 'on_the_way_sender'),
     business_contact: await getSetting(db, 'business_contact'),
+    auto_whatsapp: await getSetting(db, 'auto_whatsapp'),
   }
 }
 
@@ -72,6 +78,7 @@ const settingSchemas = {
   business_contact: z
     .object({ phone: z.string().trim().max(40).optional(), email: z.string().trim().max(120).optional(), address: z.string().trim().max(200).optional(), website: z.string().trim().max(120).optional() })
     .nullable(),
+  auto_whatsapp: z.object({ enabled: z.boolean(), kinds: z.array(z.enum(MESSAGE_KINDS)).max(MESSAGE_KINDS.length), since: z.iso.datetime().nullable() }),
 } satisfies Record<SettingKey, z.ZodType>
 
 export async function setSetting<K extends SettingKey>(actor: Actor, key: K, value: (typeof SETTING_DEFAULTS)[K]) {

@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Forbidden } from '@/components/forbidden'
 import { MessageTaskActions } from '@/components/message-task'
+import { AUTO_TONE } from '@/components/order-messages-card'
 import { Alert, Badge, Card, EmptyState, PageHeader } from '@/components/ui'
 import { createTranslator } from '@/i18n'
 import { formatDateTime } from '@/i18n/format'
@@ -48,6 +49,7 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-semibold text-ink">{t(`messages.kinds.${r.kind}`)}</span>
                     <Badge tone={STATUS_TONE[r.status]}>{tab === 'upcoming' ? t('messages.scheduled') : t(`messages.statuses.${r.status}`)}</Badge>
+                    {r.autoState && <Badge tone={AUTO_TONE[r.autoState as keyof typeof AUTO_TONE] ?? 'neutral'}>{t(`messages.auto.states.${r.autoState as keyof typeof AUTO_TONE}`)}</Badge>}
                     {r.late && <Badge tone="danger">{t('messages.late')}</Badge>}
                     {r.assignedToMe && <Badge tone="brand">{t('messages.assignedToMe')}</Badge>}
                   </div>
@@ -71,7 +73,7 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
                     {r.assigneeName && !r.assignedToMe && <span>{t('messages.assignee')}: {r.assigneeName}</span>}
                     {r.status === 'cancelled' && r.cancelReason && <span>{t(`messages.cancelReasons.${r.cancelReason === 'dismissed' ? 'dismissed' : 'superseded'}`)}</span>}
                   </div>
-                  {tab === 'due' && <MessageTaskActions taskId={r.id} status={r.status} canDismiss={manage} />}
+                  {tab === 'due' && <MessageTaskActions taskId={r.id} status={r.status} canDismiss={manage} autoState={r.autoState} />}
                 </div>
               </Card>
             </li>

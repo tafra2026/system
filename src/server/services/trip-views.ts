@@ -4,7 +4,7 @@ import type { myTrips } from './trips'
 /** Serialize driver legs for the client component. */
 export function toDriverLegs(
   rows: Awaited<ReturnType<typeof myTrips>>,
-  onTheWay: Map<string, { id: string; status: 'ready' | 'opened' | 'sent' | 'cancelled' }> = new Map(),
+  onTheWay: Map<string, { id: string; status: 'ready' | 'opened' | 'sent' | 'cancelled'; autoState: string | null }> = new Map(),
 ): DriverLeg[] {
   return rows.map((r) => ({
     messageTask: r.kind === 'dropoff' ? (onTheWay.get(r.visitId) ?? null) : null,

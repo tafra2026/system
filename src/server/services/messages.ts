@@ -129,6 +129,8 @@ export interface MessageTaskRow {
   cancelReason: string | null
   /** The visit has already started (or passed) and the reminder was not sent. */
   late: boolean
+  /** Automatic sending state (D81), null when not used for this task. */
+  autoState: string | null
 }
 
 export async function listMessageTasks(actor: Actor, scope: MessageListScope, now = new Date()): Promise<MessageTaskRow[]> {
@@ -171,6 +173,7 @@ export async function listMessageTasks(actor: Actor, scope: MessageListScope, no
     sentConfirmedAt: r.t.sentConfirmedAt,
     cancelReason: r.t.cancelReason,
     late: r.t.kind === 'visit_reminder' && OPEN_STATUSES.includes(r.t.status as 'ready') && !!r.startsAt && r.startsAt <= now,
+    autoState: r.t.autoState,
   }))
 }
 
@@ -189,7 +192,7 @@ export async function countDueMessages(actor: Actor, now = new Date()): Promise<
 export async function orderMessageTasks(actor: Actor, orderId: string) {
   if (!can(actor, 'messages.send')) return []
   return getDb()
-    .select({ id: messageTasks.id, kind: messageTasks.kind, status: messageTasks.status, dueAt: messageTasks.dueAt, sentConfirmedAt: messageTasks.sentConfirmedAt, cancelReason: messageTasks.cancelReason })
+    .select({ id: messageTasks.id, kind: messageTasks.kind, status: messageTasks.status, dueAt: messageTasks.dueAt, sentConfirmedAt: messageTasks.sentConfirmedAt, cancelReason: messageTasks.cancelReason, autoState: messageTasks.autoState })
     .from(messageTasks)
     .where(and(eq(messageTasks.orderId, orderId), or(ne(messageTasks.status, 'cancelled'), isNotNull(messageTasks.sentConfirmedAt))))
     .orderBy(asc(messageTasks.dueAt))
@@ -197,9 +200,9 @@ export async function orderMessageTasks(actor: Actor, orderId: string) {
 
 /** Open "on the way" task the driver can send for a visit (my trips page). */
 export async function myOnTheWayTasks(actor: Actor, visitIds: string[]) {
-  if (!visitIds.length) return new Map<string, { id: string; status: MessageTask['status'] }>()
+  if (!visitIds.length) return new Map<string, { id: string; status: MessageTask['status']; autoState: string | null }>()
   const rows = await getDb()
-    .select({ id: messageTasks.id, visitId: messageTasks.visitId, status: messageTasks.status })
+    .select({ id: messageTasks.id, visitId: messageTasks.visitId, status: messageTasks.status, autoState: messageTasks.autoState })
     .from(messageTasks)
     .where(
       and(
@@ -209,7 +212,7 @@ export async function myOnTheWayTasks(actor: Actor, visitIds: string[]) {
         ne(messageTasks.status, 'cancelled'),
       ),
     )
-  return new Map(rows.map((r) => [r.visitId!, { id: r.id, status: r.status }]))
+  return new Map(rows.map((r) => [r.visitId!, { id: r.id, status: r.status, autoState: r.autoState }]))
 }
 
 // ─────────────────────────────── Preparing the text ───────────────────────────────
@@ -238,6 +241,14 @@ export async function prepareMessage(actor: Actor, taskId: string): Promise<Prep
   const db = getDb()
   const t = await loadTaskFor(actor, db, taskId)
   if (t.status === 'cancelled') throw new ValidationError('message_cancelled')
+  // The automatic sender is sending it right now: preparing it by hand could send it twice.
+  if (t.autoState === 'sending') throw new ValidationError('message_auto_sending')
+  const r = await renderTaskMessage(db, t)
+  return { taskId: t.id, kind: t.kind, status: t.status, locale: r.locale, text: r.text, link: whatsappChatLink(r.phoneE164, r.text), phoneE164: r.phoneE164 }
+}
+
+/** The message text for a task, from the order's CURRENT data. No permission check: callers check. */
+export async function renderTaskMessage(db: Executor, t: MessageTask): Promise<{ locale: MessageLocale; text: string; phoneE164: string }> {
   const [row] = await db
     .select({ o: orders, customerName: customers.name, phone: customers.phoneE164, locale: customers.messageLocale })
     .from(orders)
@@ -268,8 +279,7 @@ export async function prepareMessage(actor: Actor, taskId: string): Promise<Prep
     arrival_time: arrival ? formatTime(arrival, locale) : '',
     review_link: (await getSetting(db, 'review_link')) ?? '',
   }
-  const text = renderMessage(await templateFor(db, t.kind, locale), values)
-  return { taskId: t.id, kind: t.kind, status: t.status, locale, text, link: whatsappChatLink(row.phone, text), phoneE164: row.phone }
+  return { locale, text: renderMessage(await templateFor(db, t.kind, locale), values), phoneE164: row.phone }
 }
 
 // ─────────────────────────────── Status changes ───────────────────────────────
@@ -289,6 +299,7 @@ export async function confirmMessageSent(actor: Actor, taskId: string) {
     const t = await loadTaskFor(actor, tx, taskId, true)
     if (t.status === 'sent') return
     if (t.status === 'cancelled') throw new ValidationError('message_cancelled')
+    if (t.autoState === 'sending') throw new ValidationError('message_auto_sending')
     const now = new Date()
     await tx
       .update(messageTasks)

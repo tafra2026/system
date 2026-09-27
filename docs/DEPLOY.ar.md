@@ -182,6 +182,7 @@ docker compose up -d
      | `NODE_ENV` / `APP_ENV` | `production` |
      | `RUN_WORKER_IN_APP` | `1` (التذكيرات وإشعارات الجوال تعمل داخل نفس التطبيق) |
      | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | من `npm run -s push:keys` (مرة واحدة) |
+     | `ULTRAMSG_INSTANCE_ID` / `ULTRAMSG_TOKEN` | اختياري: الإرسال التلقائي لواتساب (`docs/INTEGRATIONS.ar.md`) |
      | `PORT` | عادة تضبطه اللوحة تلقائيًا |
 
 4. من «Terminal» في اللوحة (داخل مجلد التطبيق)، مرة واحدة:

@@ -17,7 +17,7 @@ type Status = 'ready' | 'opened' | 'sent' | 'cancelled'
  * Prepare → open the customer's chat in WhatsApp → staff presses send there → confirms here.
  * Opening the chat is recorded as "opened" only; nothing is sent by the app.
  */
-export function MessageTaskActions({ taskId, status, canDismiss }: { taskId: string; status: Status; canDismiss: boolean }) {
+export function MessageTaskActions({ taskId, status, canDismiss, autoState = null }: { taskId: string; status: Status; canDismiss: boolean; autoState?: string | null }) {
   const { t } = useI18n()
   const router = useRouter()
   const online = useOnline()
@@ -37,8 +37,13 @@ export function MessageTaskActions({ taskId, status, canDismiss }: { taskId: str
     })
 
   if (current === 'sent' || current === 'cancelled') return null
+  // Being sent automatically right now: no manual buttons (it could go out twice).
+  if (autoState === 'sending') return <p className="text-sm text-muted">{t('messages.auto.sendingNote')}</p>
   return (
     <div className="flex flex-col gap-2">
+      {autoState === 'failed' && <p className="text-sm text-muted">{t('messages.auto.failedNote')}</p>}
+      {autoState === 'gave_up' && <p className="rounded-xl border border-danger/30 bg-danger-soft px-3 py-2 text-sm text-danger">{t('messages.auto.gaveUpNote')}</p>}
+      {autoState === 'uncertain' && <p className="rounded-xl border border-warning/30 bg-warning-soft px-3 py-2 text-sm text-ink">{t('messages.auto.uncertainNote')}</p>}
       {error && (
         <p role="alert" className="rounded-xl border border-danger/30 bg-danger-soft px-3 py-2 text-sm text-danger">
           {translateError(t, error.error, error.errorParams)}

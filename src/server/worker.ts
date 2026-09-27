@@ -2,16 +2,23 @@ import { sql } from 'drizzle-orm'
 import { purgeExpiredSessions } from './auth/sessions'
 import { getDb } from './db'
 import { deliverPendingPushes } from './push'
+import { autoSendDueMessages } from './services/auto-messages'
 import { createDueMessageNotifications, purgeOldNotifications } from './services/notifications'
 
 /** Arbitrary constant: only one worker tick runs at a time, even with several workers. */
 const WORKER_LOCK = 72_401_311
 
 /**
- * One pass of the background worker: announce WhatsApp tasks that became due, then push all
- * pending notifications. Returns null when another worker holds the lock.
+ * One pass of the background worker: send due WhatsApp messages automatically where management
+ * switched that on (outside the lock — each message is claimed individually), then announce the
+ * remaining due tasks and push all pending notifications. Returns null when another worker holds the lock.
  */
 export async function runWorkerTick(now = new Date()) {
+  try {
+    await autoSendDueMessages(now)
+  } catch (err) {
+    console.error('Automatic WhatsApp pass failed:', err instanceof Error ? err.name : 'unknown')
+  }
   return getDb().transaction(async (tx) => {
     const [lock] = await tx.execute<{ ok: boolean }>(sql`SELECT pg_try_advisory_xact_lock(${WORKER_LOCK}) AS ok`).then((r) => r.rows)
     if (!lock?.ok) return null

@@ -28,7 +28,7 @@ export interface DriverLeg {
   origin: { label: string; mapUrl: string | null }
   specialists: string[]
   /** "On the way" WhatsApp message assigned to this driver, once she started heading out. */
-  messageTask: { id: string; status: 'ready' | 'opened' | 'sent' | 'cancelled' } | null
+  messageTask: { id: string; status: 'ready' | 'opened' | 'sent' | 'cancelled'; autoState: string | null } | null
 }
 
 type Step = 'accept' | 'start' | 'arrive' | 'complete'
@@ -144,7 +144,7 @@ export function TripsList({ legs }: { legs: DriverLeg[] }) {
           {l.messageTask && (
             <div className="flex flex-col gap-1">
               <p className="text-sm font-semibold text-ink">{l.messageTask.status === 'sent' ? t('messages.onTheWaySent') : t('messages.kinds.on_the_way')}</p>
-              <MessageTaskActions taskId={l.messageTask.id} status={l.messageTask.status} canDismiss={false} />
+              <MessageTaskActions taskId={l.messageTask.id} status={l.messageTask.status} canDismiss={false} autoState={l.messageTask.autoState} />
             </div>
           )}
         </li>

@@ -7,6 +7,7 @@ import { MessageTaskActions } from './message-task'
 import { Badge, Card } from './ui'
 
 const STATUS_TONE = { ready: 'brand', opened: 'warning', sent: 'success', cancelled: 'neutral' } as const
+export const AUTO_TONE = { sending: 'brand', failed: 'warning', gave_up: 'danger', uncertain: 'warning', sent: 'success' } as const
 
 /** WhatsApp messages of one order: prepare, open the chat, confirm sending. */
 export async function OrderMessagesCard({ actor, orderId }: { actor: Actor; orderId: string }) {
@@ -25,11 +26,12 @@ export async function OrderMessagesCard({ actor, orderId }: { actor: Actor; orde
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <span className="font-semibold text-ink">{t(`messages.kinds.${m.kind}`)}</span>
                 <Badge tone={STATUS_TONE[m.status]}>{future ? t('messages.scheduled') : t(`messages.statuses.${m.status}`)}</Badge>
+                {m.autoState && <Badge tone={AUTO_TONE[m.autoState as keyof typeof AUTO_TONE] ?? 'neutral'}>{t(`messages.auto.states.${m.autoState as keyof typeof AUTO_TONE}`)}</Badge>}
                 <span className="text-xs text-muted">
                   {m.status === 'sent' && m.sentConfirmedAt ? t('messages.confirmedAt') : t('messages.dueAt')}: <bdi>{formatDateTime(m.status === 'sent' && m.sentConfirmedAt ? m.sentConfirmedAt : m.dueAt, actor.locale)}</bdi>
                 </span>
               </div>
-              {!future && <MessageTaskActions taskId={m.id} status={m.status} canDismiss />}
+              {!future && <MessageTaskActions taskId={m.id} status={m.status} canDismiss autoState={m.autoState} />}
             </li>
           )
         })}
