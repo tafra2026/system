@@ -981,6 +981,7 @@ export const notificationKind = pgEnum('notification_kind', [
   'transfer_pending',
   'payment_confirmed',
   'payment_rejected',
+  'trip_progress',
 ])
 export const pushState = pgEnum('push_state', ['pending', 'sent', 'no_device', 'disabled', 'failed', 'expired'])
 

@@ -905,6 +905,8 @@ const en: Dictionary = {
     bellUnread: 'Notifications, {count} unread',
     testTitle: 'Pamper Me',
     testBody: 'Test: notifications work on this device ✅',
+    tripSteps: { accept: 'Driver accepted', start: 'Driver on the way', arrive: 'Driver arrived', complete: 'Trip done' },
+    tripLegs: { dropoff: 'Drop-off', pickup: 'Pick-up' },
     kinds: {
       visit_assigned: { title: 'New booking for you', body: 'Order {reference} — {time}' },
       visit_unassigned: { title: 'Removed from a booking', body: 'You are no longer on order {reference} — {time}' },
@@ -915,6 +917,7 @@ const en: Dictionary = {
       transfer_pending: { title: 'Transfer awaiting approval', body: '{amount} — {reference}' },
       payment_confirmed: { title: 'Payment approved', body: '{amount} — {reference}' },
       payment_rejected: { title: 'Payment rejected', body: '{amount} — {reference}' },
+      trip_progress: { title: 'Trip update: {step}', body: '{driver} — {leg} — order {reference}' },
     },
     push: {
       title: 'Phone notifications',

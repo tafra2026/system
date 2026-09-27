@@ -21,6 +21,10 @@ export interface NotificationParams {
   at?: string
   amountHalalas?: number
   messageKind?: string
+  /** Driver progress (trip_progress): which step, which leg, and the driver's name. */
+  step?: 'accept' | 'start' | 'arrive' | 'complete'
+  leg?: 'dropoff' | 'pickup'
+  driver?: string
 }
 
 interface NotifyInput {
@@ -112,6 +116,31 @@ export async function notifyVisitChanges(tx: Executor, visitId: string, before: 
   }
 }
 
+// ─────────────────────────────── Driver progress ───────────────────────────────
+
+/**
+ * The owner and the administrative manager are told about every step a driver records
+ * (accepted, on the way, arrived, done). Once per leg and step, even if the driver taps twice.
+ */
+export async function notifyTripProgress(tx: Executor, legId: string, step: NonNullable<NotificationParams['step']>, actorUserId: string) {
+  const [row] = await tx
+    .select({ kind: tripLegs.kind, orderId: orders.id, reference: orders.reference, driver: employees.fullName, at: tripLegs.arriveAt })
+    .from(tripLegs)
+    .innerJoin(visits, eq(visits.id, tripLegs.visitId))
+    .innerJoin(orders, eq(orders.id, visits.orderId))
+    .innerJoin(employees, eq(employees.id, tripLegs.driverEmployeeId))
+    .where(eq(tripLegs.id, legId))
+  if (!row) return
+  await notify(tx, {
+    userIds: await activeUsersWith(tx, 'staff.manage'),
+    kind: 'trip_progress',
+    params: { reference: row.reference, step, leg: row.kind, driver: row.driver, at: new Date().toISOString() },
+    link: `/orders/${row.orderId}`,
+    dedupeKey: `trip:${legId}:${step}`,
+    excludeUserId: actorUserId,
+  })
+}
+
 // ─────────────────────────────── Payments ───────────────────────────────
 
 export async function notifyTransferPending(tx: Executor, reference: string, amountHalalas: number, actorUserId: string) {
@@ -187,8 +216,11 @@ export function renderNotification(n: Pick<Notification, 'kind' | 'params'>, loc
     time: p.at ? formatDateTime(new Date(p.at), locale) : '',
     amount: p.amountHalalas != null ? formatMoney(p.amountHalalas, locale) : '',
     message: p.messageKind ? t(`messages.kinds.${p.messageKind as 'visit_reminder'}`) : '',
+    step: p.step ? t(`notifications.tripSteps.${p.step}`) : '',
+    leg: p.leg ? t(`notifications.tripLegs.${p.leg}`) : '',
+    driver: p.driver ?? '',
   }
-  return { title: t(`notifications.kinds.${n.kind}.title`), body: t(`notifications.kinds.${n.kind}.body`, vars) }
+  return { title: t(`notifications.kinds.${n.kind}.title`, vars), body: t(`notifications.kinds.${n.kind}.body`, vars) }
 }
 
 // ─────────────────────────────── The user's own centre ───────────────────────────────

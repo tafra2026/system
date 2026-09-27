@@ -15,7 +15,7 @@ import { getSetting } from './settings'
 import { teamsOn } from './teams'
 import { syncLegsForVisit } from './trip-sync'
 import { syncMessageTasks } from './messages'
-import { notifyVisitChanges, visitPeople } from './notifications'
+import { notifyTripProgress, notifyVisitChanges, visitPeople } from './notifications'
 import { employeesOffOn } from './time-off'
 import { parseWith, pgConstraint, pgErrorCode } from './validation'
 
@@ -311,6 +311,7 @@ export async function markLegStarted(actor: Actor, legId: string) {
     const [v] = await tx.select({ orderId: visits.orderId }).from(visits).where(eq(visits.id, leg.visitId))
     if (v) await syncMessageTasks(tx, v.orderId)
     await writeAudit(tx, { actorUserId: actor.userId, action: 'trip.leg_started', entityType: 'visit', entityId: leg.visitId, after: { kind: leg.kind } })
+    await notifyTripProgress(tx, legId, 'start', actor.userId)
   })
 }
 
@@ -355,6 +356,7 @@ export async function markLegStep(actor: Actor, legId: string, step: TripStep) {
       await tx.update(tripLegs).set({ completedAt: now }).where(eq(tripLegs.id, legId))
     }
     await writeAudit(tx, { actorUserId: actor.userId, action: `trip.leg_${step}`, entityType: 'visit', entityId: leg.visitId, after: { kind: leg.kind } })
+    await notifyTripProgress(tx, legId, step, actor.userId)
   })
 }
 

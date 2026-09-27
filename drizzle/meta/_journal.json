@@ -169,6 +169,13 @@
       "when": 1790510909601,
       "tag": "0023_message_auto_send",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1790512101450,
+      "tag": "0024_trip_progress_notification",
+      "breakpoints": true
     }
   ]
 }

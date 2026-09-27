@@ -907,6 +907,8 @@ const ar = {
     bellUnread: 'الإشعارات، {count} غير مقروءة',
     testTitle: 'Pamper Me',
     testBody: 'تجربة: الإشعارات تعمل على هذا الجهاز ✅',
+    tripSteps: { accept: 'قبل السائق المشوار', start: 'السائق في الطريق', arrive: 'السائق وصل', complete: 'تم المشوار' },
+    tripLegs: { dropoff: 'توصيل', pickup: 'استلام' },
     kinds: {
       visit_assigned: { title: 'حجز جديد لك', body: 'طلب {reference} — {time}' },
       visit_unassigned: { title: 'أُزلت من حجز', body: 'لم تعد ضمن الطلب {reference} — {time}' },
@@ -917,6 +919,7 @@ const ar = {
       transfer_pending: { title: 'تحويل بانتظار الاعتماد', body: '{amount} — {reference}' },
       payment_confirmed: { title: 'تم اعتماد الدفعة', body: '{amount} — {reference}' },
       payment_rejected: { title: 'رُفضت الدفعة', body: '{amount} — {reference}' },
+      trip_progress: { title: 'تحديث مشوار: {step}', body: '{driver} — {leg} — طلب {reference}' },
     },
     push: {
       title: 'إشعارات الجوال',
