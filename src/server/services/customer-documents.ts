@@ -1,3 +1,4 @@
+import { appBaseUrl } from '@/server/base-url'
 import { createHash } from 'node:crypto'
 import { and, asc, desc, eq, gt, isNull, sql } from 'drizzle-orm'
 import { z } from 'zod'
@@ -133,7 +134,7 @@ export async function createDocumentLink(actor: Actor, documentId: string) {
   const token = newToken()
   const expiresAt = new Date(Date.now() + DOCUMENT_LINK_DAYS * 86_400_000)
   await db.insert(customerDocumentLinks).values({ documentId, tokenHash: sha256(token), expiresAt, createdByUserId: actor.userId })
-  const base = (process.env.APP_BASE_URL ?? 'http://localhost:3000').replace(/\/$/, '')
+  const base = appBaseUrl()
   return { url: `${base}/d/${token}`, expiresAt, number: d.number, phone: d.phone, name: d.name, locale: d.locale }
 }
 

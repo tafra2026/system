@@ -1,4 +1,5 @@
 import 'server-only'
+import { learnBaseUrlFromRequest } from './base-url'
 import { DomainError } from '@/domain/errors'
 import type { Actor } from './authz/actor'
 import { ForbiddenError, UnauthenticatedError } from './authz/errors'
@@ -26,6 +27,7 @@ export async function runAction<T>(fn: (actor: Actor) => Promise<T>): Promise<Ac
   try {
     const actor = await getCurrentActor()
     if (!actor) throw new UnauthenticatedError()
+    await learnBaseUrlFromRequest()
     return { ok: true, data: await fn(actor), at: Date.now() }
   } catch (err) {
     return toActionError(err)

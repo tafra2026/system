@@ -1,4 +1,5 @@
 import 'server-only'
+import { appBaseUrl } from '@/server/base-url'
 
 /**
  * District (neighbourhood) name for a map point, used only to pre-fill the "district" field —
@@ -20,7 +21,7 @@ export async function districtForPoint(lat: number, lng: number, locale: 'ar' | 
       const hit = comps.find((c) => c.types.includes('sublocality') || c.types.includes('neighborhood') || c.types.includes('sublocality_level_1'))
       return hit?.long_name?.slice(0, 120) ?? null
     }
-    const base = (process.env.APP_BASE_URL ?? 'https://localhost').replace(/\/$/, '')
+    const base = appBaseUrl()
     const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=16&accept-language=${locale}`, {
       signal: controller.signal,
       headers: { 'User-Agent': `PamperMe-internal/1.0 (${base})` },

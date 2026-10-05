@@ -1,3 +1,4 @@
+import { appBaseUrl } from '@/server/base-url'
 import { and, eq, isNull } from 'drizzle-orm'
 import { z } from 'zod'
 import { authorize, type Actor } from '../authz/actor'
@@ -20,8 +21,7 @@ const usernameSchema = z
 
 /** Build the public setup URL for a raw invite token. */
 export function setupUrl(token: string): string {
-  const base = (process.env.APP_BASE_URL ?? 'http://localhost:3000').replace(/\/$/, '')
-  return `${base}/setup/${token}`
+  return `${appBaseUrl()}/setup/${token}`
 }
 
 /** Revoke previous unused links, create a new one, and return the RAW token (shown once). */

@@ -1,3 +1,4 @@
+import { learnBaseUrlFromRequest } from '@/server/base-url'
 import { BrandLogo } from '@/components/brand-logo'
 import { BottomNav, SideNav, type NavItem } from '@/components/shell/nav'
 import { createTranslator } from '@/i18n'
@@ -11,6 +12,7 @@ import { unreadNotificationCount } from '@/server/services/notifications'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const actor = await requireActor()
+  await learnBaseUrlFromRequest()
   const t = createTranslator(actor.locale)
   const unread = await unreadNotificationCount(actor)
   // Menu entries appear only for sections this role may use; the server re-checks every request.

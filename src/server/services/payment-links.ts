@@ -1,3 +1,4 @@
+import { appBaseUrl } from '@/server/base-url'
 import { randomBytes } from 'node:crypto'
 import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
@@ -48,7 +49,7 @@ export function providerStates(): ProviderState[] {
 const OPEN: PaymentLink['status'][] = ['creating', 'open', 'authorized']
 
 function publicBaseUrl(): string {
-  return (process.env.APP_BASE_URL ?? 'http://localhost:3000').replace(/\/$/, '')
+  return appBaseUrl()
 }
 
 function newReference(): string {
