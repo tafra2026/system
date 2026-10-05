@@ -133,7 +133,8 @@ describe('Tabby links (development mock)', () => {
     const { mod, customer, orderId } = await setup()
     mockTabby({ rejectCheckout: true })
     const declined = await createPaymentLink(mod.actor, { provider: 'tabby', orderId, phone: customer.phoneE164, amountHalalas: 5000, idempotencyKey: 'k-tabby-0002' })
-    expect(declined).toMatchObject({ status: 'failed', errorCode: 'not_eligible' })
+    expect(declined.status).toBe('failed')
+    expect(declined.errorCode).toMatch(/^not_eligible/)
 
     const reqs = mockTabby({ amountOverride: '1.00' })
     await createPaymentLink(mod.actor, { provider: 'tabby', orderId, phone: customer.phoneE164, amountHalalas: 5000, idempotencyKey: 'k-tabby-0003' })
@@ -151,6 +152,25 @@ describe('Tabby links (development mock)', () => {
     expect(reqs.filter((r) => r.url.endsWith('/captures'))).toHaveLength(0)
     expect(await getDb().select().from(payments).where(eq(payments.orderId, orderId))).toHaveLength(0)
     expect((await getDb().select().from(paymentLinks))[0]!.status).toBe('cancelled')
+  })
+})
+
+describe('first connection help (development mock)', () => {
+  it('Tabby works without the webhook secret, and a refusal shows the provider\'s reason (no keys, no phone)', async () => {
+    const { mod, customer, orderId } = await setup()
+    const keep = process.env.TABBY_WEBHOOK_SECRET
+    delete process.env.TABBY_WEBHOOK_SECRET
+    try {
+      useMockTabbyTransportForTests(async () => ({ status: 400, json: async () => ({ status: 'error', errorType: 'bad_data', error: 'buyer.email is required for sk_test_abc and 0501234567' }) }))
+      const r = await createPaymentLink(mod.actor, { provider: 'tabby', orderId, phone: customer.phoneE164, amountHalalas: 5000, idempotencyKey: 'k-tabby-0009' })
+      expect(r.status).toBe('failed')
+      expect(r.errorCode).toContain('HTTP 400')
+      expect(r.errorCode).toContain('buyer.email is required')
+      expect(r.errorCode).not.toContain('sk_test_abc')
+      expect(r.errorCode).not.toContain('0501234567')
+    } finally {
+      process.env.TABBY_WEBHOOK_SECRET = keep
+    }
   })
 })
 

@@ -24,8 +24,24 @@ export function tabbyBaseUrl(): string {
   return (process.env.TABBY_BASE_URL?.trim() || 'https://api.tabby.ai').replace(/\/$/, '')
 }
 
+/** Links work with the secret key + merchant code. The webhook secret is optional: without it
+ *  Tabby's webhook is refused, and payments are confirmed by the return page and the worker re-check. */
 export function tabbyConfigured(): boolean {
-  return !!(process.env.TABBY_SECRET_KEY?.trim() && process.env.TABBY_MERCHANT_CODE?.trim() && process.env.TABBY_WEBHOOK_SECRET?.trim())
+  return !!(process.env.TABBY_SECRET_KEY?.trim() && process.env.TABBY_MERCHANT_CODE?.trim())
+}
+
+/** Short reason from a provider error body, for staff (no keys, no phone numbers). */
+export function providerErrorDetail(data: unknown, status: number): string {
+  const d = (data ?? {}) as Record<string, unknown>
+  const parts: string[] = []
+  for (const k of ['error', 'message', 'errorType', 'error_code']) if (typeof d[k] === 'string') parts.push(d[k] as string)
+  for (const k of ['errors', 'details']) {
+    const v = d[k]
+    if (Array.isArray(v)) for (const e of v.slice(0, 3)) parts.push(typeof e === 'string' ? e : JSON.stringify(e))
+    else if (v && typeof v === 'object') parts.push(JSON.stringify(v))
+  }
+  const text = [`HTTP ${status}`, ...parts].join(' — ')
+  return text.replace(/\+?\d{7,}/g, '…').replace(/(sk|pk)_[A-Za-z0-9_]+/g, '…').slice(0, 200)
 }
 
 /** Header value check for Tabby's webhook (constant-time). */
@@ -109,7 +125,7 @@ export async function createTabbyCheckout(input: CheckoutInput): Promise<Checkou
   }
   const r = await call('POST', '/api/v2/checkout', body)
   if (!r.ok) return { ok: false, code: r.timeout ? 'timeout_unknown' : 'network' }
-  if (r.status < 200 || r.status >= 300 || !r.data) return { ok: false, code: 'rejected', detail: `HTTP ${r.status}` }
+  if (r.status < 200 || r.status >= 300 || !r.data) return { ok: false, code: 'rejected', detail: providerErrorDetail(r.data, r.status) }
   const d = r.data as { status?: string; payment?: { id?: string }; configuration?: { available_products?: { installments?: { web_url?: string }[] }; products?: { installments?: { rejection_reason?: string } } } }
   if (d.status === 'rejected') return { ok: false, code: 'not_eligible', detail: d.configuration?.products?.installments?.rejection_reason ?? undefined }
   const url = d.configuration?.available_products?.installments?.[0]?.web_url

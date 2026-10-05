@@ -1,6 +1,6 @@
 import 'server-only'
 import { createHmac, timingSafeEqual } from 'node:crypto'
-import type { JsonTransport } from './tabby'
+import { providerErrorDetail, type JsonTransport } from './tabby'
 
 /**
  * Tamara (split in payments) — hosted checkout. Our server never sees card data.
@@ -122,7 +122,7 @@ export async function createTamaraCheckout(input: TamaraCheckoutInput): Promise<
   }
   const r = await call('POST', '/checkout', body)
   if (!r.ok) return { ok: false, code: r.timeout ? 'timeout_unknown' : 'network' }
-  if (r.status < 200 || r.status >= 300 || !r.data) return { ok: false, code: 'rejected', detail: `HTTP ${r.status}` }
+  if (r.status < 200 || r.status >= 300 || !r.data) return { ok: false, code: 'rejected', detail: providerErrorDetail(r.data, r.status) }
   const d = r.data as { order_id?: string; checkout_url?: string }
   if (!d.order_id || !d.checkout_url) return { ok: false, code: 'bad_response' }
   return { ok: true, providerRef: d.order_id, checkoutUrl: d.checkout_url }

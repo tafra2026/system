@@ -173,7 +173,7 @@ export async function createPaymentLink(actor: Actor, raw: unknown): Promise<Cre
       res.ok
         ? { status: 'open', providerRef: res.providerRef, checkoutUrl: res.checkoutUrl, errorCode: null, updatedAt: new Date() }
         : // After a timeout the provider may have created it: stay "creating" and ask to check.
-          { status: res.code === 'timeout_unknown' ? 'creating' : 'failed', errorCode: res.code, updatedAt: new Date() },
+          { status: res.code === 'timeout_unknown' ? 'creating' : 'failed', errorCode: ('detail' in res && res.detail ? `${res.code}: ${res.detail}` : res.code).slice(0, 240), updatedAt: new Date() },
     )
     .where(and(eq(paymentLinks.id, link.id), eq(paymentLinks.status, 'creating')))
     .returning()

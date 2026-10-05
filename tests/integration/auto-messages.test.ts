@@ -56,7 +56,7 @@ async function setup() {
   const book = async (time = '20:00') => {
     const { customer, address } = await customerWithAddress(mod.actor)
     const swedish = await cat.svc('massage_swedish')
-    const res = await saveOrder(mod.actor, null, { customerId: customer.id, addressId: address.id, lines: [{ kind: 'service', serviceId: swedish.id, beneficiaryIndex: 1, visitIndex: 0 }], visits: [visit('2026-12-01', time, [s1.employee.id])] }, { confirm: true })
+    const res = await saveOrder(mod.actor, null, { customerId: customer.id, addressId: address.id, lines: [{ kind: 'service', serviceId: swedish.id, beneficiaryIndex: 1, visitIndex: 0 }], visits: [visit('2030-12-01', time, [s1.employee.id])] }, { confirm: true })
     await getOrderDetail(mod.actor, res.id)
     return { orderId: res.id, customer }
   }

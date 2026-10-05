@@ -8,6 +8,8 @@ import { getDb } from '@/server/db'
 import { customerDocuments, orders, paymentLinks, tripLegs, visits } from '@/server/db/schema'
 import { json, withActor } from '@/server/http'
 import { lastMigrationStatus, migrateOnStart } from '@/server/migrate-on-start'
+import { providerStates } from '@/server/services/payment-links'
+import { ultramsgConfigured } from '@/server/integrations/ultramsg'
 
 export const dynamic = 'force-dynamic'
 
@@ -78,6 +80,16 @@ export const GET = withActor(async (req: NextRequest, actor) => {
       APP_BASE_URL: !!process.env.APP_BASE_URL,
       RUN_WORKER_IN_APP: process.env.RUN_WORKER_IN_APP === '1',
       MIGRATE_ON_START: process.env.MIGRATE_ON_START !== '0',
+      GOOGLE_MAPS_BROWSER_KEY: !!process.env.GOOGLE_MAPS_BROWSER_KEY?.trim(),
+      GOOGLE_MAPS_API_KEY: !!process.env.GOOGLE_MAPS_API_KEY?.trim(),
+      VAPID: !!process.env.VAPID_PRIVATE_KEY?.trim(),
+      ULTRAMSG: ultramsgConfigured(),
+    },
+    // Which payment gateways can create links (true/false only — never the keys).
+    payments: {
+      ...Object.fromEntries(providerStates().map((p) => [p.provider, p.configured])),
+      tabbyWebhookSecret: !!process.env.TABBY_WEBHOOK_SECRET?.trim(),
+      tamaraServer: (process.env.TAMARA_BASE_URL?.trim() || 'https://api.tamara.co').includes('sandbox') ? 'sandbox' : 'live',
     },
   })
 })

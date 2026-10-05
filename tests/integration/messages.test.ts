@@ -35,7 +35,7 @@ async function setup() {
     const res = await saveOrder(
       mod.actor,
       null,
-      { customerId: customer.id, addressId: address.id, lines: [{ kind: 'service', serviceId: swedish.id, beneficiaryIndex: 1, visitIndex: 0 }], visits: [visit(opts.date ?? '2026-10-01', opts.time ?? '20:00', [s1.employee.id])] },
+      { customerId: customer.id, addressId: address.id, lines: [{ kind: 'service', serviceId: swedish.id, beneficiaryIndex: 1, visitIndex: 0 }], visits: [visit(opts.date ?? '2030-10-01', opts.time ?? '20:00', [s1.employee.id])] },
       { confirm: opts.confirm ?? true },
     )
     const detail = await getOrderDetail(mod.actor, res.id)
@@ -57,20 +57,20 @@ describe('tasks are created by the server (spec §13, §14)', () => {
     const rows = await tasksOf(o.orderId)
     expect(open(rows, 'booking_confirmation')).toHaveLength(1)
     const [reminder] = open(rows, 'visit_reminder')
-    expect(reminder!.dueAt).toEqual(new Date('2026-10-01T17:00:00+03:00'))
+    expect(reminder!.dueAt).toEqual(new Date('2030-10-01T17:00:00+03:00'))
   })
 
   it('acceptance #18: rescheduling cancels the old reminder and prepares one for the new time — never duplicates', async () => {
     const { mod, s1, book } = await setup()
     const o = await book()
-    const move = { date: '2026-10-02', time: '21:00', durationMinutes: 60, specialistIds: [s1.employee.id] }
+    const move = { date: '2030-10-02', time: '21:00', durationMinutes: 60, specialistIds: [s1.employee.id] }
     await rescheduleVisit(mod.actor, o.visit.id, move)
     await rescheduleVisit(mod.actor, o.visit.id, move) // same time again: no new task
     await Promise.all([syncMessageTasks(getDb(), o.orderId), getDb().transaction((tx) => syncMessageTasks(tx, o.orderId))])
     const rows = await tasksOf(o.orderId)
     const reminders = rows.filter((r) => r.kind === 'visit_reminder')
     expect(open(rows, 'visit_reminder')).toHaveLength(1)
-    expect(open(rows, 'visit_reminder')[0]!.dueAt).toEqual(new Date('2026-10-02T18:00:00+03:00'))
+    expect(open(rows, 'visit_reminder')[0]!.dueAt).toEqual(new Date('2030-10-02T18:00:00+03:00'))
     expect(reminders.filter((r) => r.status === 'cancelled')).toHaveLength(1)
     expect(open(rows, 'booking_confirmation')).toHaveLength(1)
   })
@@ -133,7 +133,7 @@ describe('"on the way" and who may see what', () => {
     const o = await book()
     const other = await book({ time: '23:00' })
     await saveLeg(mod.actor, o.visit.id, { kind: 'dropoff', driverId: driver.employee.id, originVisitId: null, mode: 'manual', travelMinutes: 20, bufferMinutes: 15 })
-    const [leg] = await myTrips(driver.actor, '2026-10-01', '2026-10-01')
+    const [leg] = await myTrips(driver.actor, '2030-10-01', '2030-10-01')
     await markLegStarted(driver.actor, leg!.legId)
 
     const [onway] = open(await tasksOf(o.orderId), 'on_the_way')
@@ -141,7 +141,7 @@ describe('"on the way" and who may see what', () => {
     expect(onway!.visitId).toBe(o.visit.id)
 
     // Driver sees only her task; not the confirmations/reminders or other orders.
-    const now = new Date('2026-10-01T19:40:00+03:00')
+    const now = new Date('2030-10-01T19:40:00+03:00')
     const visible = await listMessageTasks(driver.actor, 'due', now)
     expect(visible.map((r) => r.id)).toEqual([onway!.id])
     const [otherConfirm] = open(await tasksOf(other.orderId), 'booking_confirmation')
@@ -154,7 +154,7 @@ describe('"on the way" and who may see what', () => {
     // Setting: the moderator sends "on the way" instead of the driver.
     await setSetting(owner.actor, 'on_the_way_sender', 'moderator')
     await saveLeg(mod.actor, other.visit.id, { kind: 'dropoff', driverId: driver.employee.id, originVisitId: null, mode: 'manual', travelMinutes: 20, bufferMinutes: 15 })
-    const legs = await myTrips(driver.actor, '2026-10-01', '2026-10-01')
+    const legs = await myTrips(driver.actor, '2030-10-01', '2030-10-01')
     await markLegStarted(driver.actor, legs.find((l) => l.visitId === other.visit.id)!.legId)
     const [onway2] = await getDb().select().from(messageTasks).where(and(eq(messageTasks.orderId, other.orderId), eq(messageTasks.kind, 'on_the_way')))
     expect(onway2!.assigneeEmployeeId).toBe(mod.employee.id)

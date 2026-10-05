@@ -75,7 +75,16 @@ export function NewLinkForm({ providers, defaults }: { providers: ProviderState[
         </div>
       )}
       {created?.status === 'creating' && <Alert tone="warning">{t('paymentLinks.creatingUnknown')}</Alert>}
-      {created?.status === 'failed' && <Alert tone="error">{created.errorCode === 'not_eligible' ? t('paymentLinks.notEligible') : t('paymentLinks.failed')}</Alert>}
+      {created?.status === 'failed' && (
+        <Alert tone="error">
+          {created.errorCode?.startsWith('not_eligible') ? t('paymentLinks.notEligible') : t('paymentLinks.failed')}
+          {created.errorCode && !created.errorCode.startsWith('not_eligible') && (
+            <span className="ltr-data mt-1 block break-words text-xs" dir="ltr">
+              {created.errorCode}
+            </span>
+          )}
+        </Alert>
+      )}
 
       <Field label={t('paymentLinks.phone')} name="phone" error={fieldError('phone')}>
         {(p) => <input {...p} defaultValue={defaults?.phone ?? ''} className={`${inputClass} ltr-data`} dir="ltr" inputMode="tel" autoComplete="off" required placeholder="05xxxxxxxx" />}

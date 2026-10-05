@@ -30,7 +30,7 @@ async function setup() {
   const res = await saveOrder(
     mod.actor,
     null,
-    { customerId: customer.id, addressId: address.id, lines: [{ kind: 'service', serviceId: swedish.id, beneficiaryIndex: 1, visitIndex: 0 }], visits: [visit('2026-10-01', '20:00', [s1.employee.id])] },
+    { customerId: customer.id, addressId: address.id, lines: [{ kind: 'service', serviceId: swedish.id, beneficiaryIndex: 1, visitIndex: 0 }], visits: [visit('2030-10-01', '20:00', [s1.employee.id])] },
     { confirm: true },
   )
   const detail = await getOrderDetail(mod.actor, res.id)
@@ -51,11 +51,11 @@ describe('who is told what (spec §14)', () => {
     expect(n!.body).toContain(reference)
     expect(n!.body).not.toMatch(/[؀-ۿ]/)
 
-    await rescheduleVisit(mod.actor, visitId, { date: '2026-10-01', time: '21:00', durationMinutes: 60, specialistIds: [s2.employee.id] })
+    await rescheduleVisit(mod.actor, visitId, { date: '2030-10-01', time: '21:00', durationMinutes: 60, specialistIds: [s2.employee.id] })
     expect(await kindsFor(s1.user.id)).toEqual(['visit_assigned', 'visit_unassigned'])
     expect(await kindsFor(s2.user.id)).toEqual(['visit_assigned'])
 
-    await rescheduleVisit(mod.actor, visitId, { date: '2026-10-01', time: '22:00', durationMinutes: 60, specialistIds: [s2.employee.id] })
+    await rescheduleVisit(mod.actor, visitId, { date: '2030-10-01', time: '22:00', durationMinutes: 60, specialistIds: [s2.employee.id] })
     expect(await kindsFor(s2.user.id)).toEqual(['visit_assigned', 'visit_rescheduled'])
 
     await saveLeg(mod.actor, visitId, { kind: 'dropoff', driverId: driver.employee.id, originVisitId: null, mode: 'manual', travelMinutes: 20, bufferMinutes: 15 })
@@ -90,8 +90,8 @@ describe('background worker: due messages and Web Push', () => {
     // The booking confirmation is due now; the reminder at 17:00 on the visit day.
     await runWorkerTick(new Date())
     expect(await kindsFor(mod.user.id)).toEqual(['message_due'])
-    await runWorkerTick(new Date('2026-10-01T17:01:00+03:00'))
-    await runWorkerTick(new Date('2026-10-01T17:02:00+03:00'))
+    await runWorkerTick(new Date('2030-10-01T17:01:00+03:00'))
+    await runWorkerTick(new Date('2030-10-01T17:02:00+03:00'))
     expect(await kindsFor(mod.user.id)).toEqual(['message_due', 'message_due'])
     const texts = (await myNotifications(mod.actor)).map((n) => n.body)
     expect(texts.some((b) => b.startsWith('تذكير قبل الموعد'))).toBe(true)
