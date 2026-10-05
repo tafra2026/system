@@ -82,6 +82,8 @@ export interface CreatedLink {
   id: string
   status: PaymentLink['status']
   checkoutUrl: string | null
+  /** Branded short link to send to the customer. */
+  shortUrl: string | null
   errorCode: string | null
 }
 
@@ -181,7 +183,7 @@ export async function createPaymentLink(actor: Actor, raw: unknown): Promise<Cre
 }
 
 function toCreated(l: PaymentLink): CreatedLink {
-  return { id: l.id, status: l.status, checkoutUrl: l.checkoutUrl, errorCode: l.errorCode }
+  return { id: l.id, status: l.status, checkoutUrl: l.checkoutUrl, shortUrl: l.checkoutUrl ? shortPayUrl(l.reference) : null, errorCode: l.errorCode }
 }
 
 // ─────────────────────────────── Provider notifications ───────────────────────────────
@@ -523,6 +525,21 @@ export async function linkDefaultsForOrder(actor: Actor, orderId: string) {
   return { orderId, reference: row.o.reference, status: row.o.status, customerName: row.name, phone: row.phone, suggestedHalalas: Math.max(0, due.remaining - due.openLinks) }
 }
 
+/** Short branded link for customers; it redirects to the gateway's page while the link is open. */
+export function shortPayUrl(reference: string): string {
+  return `${publicBaseUrl()}/p/${reference}`
+}
+
+/** Where a short link goes. Public: reveals only open / paid / closed. */
+export async function paymentLinkTarget(reference: string): Promise<{ kind: 'open'; url: string } | { kind: 'paid' } | { kind: 'closed' }> {
+  if (!/^PL-[A-Z0-9]{6,20}$/.test(reference)) return { kind: 'closed' }
+  const [l] = await getDb().select({ status: paymentLinks.status, url: paymentLinks.checkoutUrl }).from(paymentLinks).where(eq(paymentLinks.reference, reference))
+  if (!l) return { kind: 'closed' }
+  if (l.status === 'paid') return { kind: 'paid' }
+  if ((l.status === 'open' || l.status === 'authorized') && l.url) return { kind: 'open', url: l.url }
+  return { kind: 'closed' }
+}
+
 /** WhatsApp text with the customer's name and the link (the staff member presses send). */
 export async function paymentLinkWhatsapp(actor: Actor, linkId: string) {
   authorize(actor, 'payments.links')
@@ -540,7 +557,7 @@ export async function paymentLinkWhatsapp(actor: Actor, linkId: string) {
   const amount = formatMoney(row.l.amountHalalas, locale)
   const text =
     locale === 'en'
-      ? [`Hi${name ? ` ${name}` : ''} 🌸`, `Here is your Pamper Me payment link${row.orderRef ? ` for order ${row.orderRef}` : ''} (${amount}):`, row.l.checkoutUrl].join('\n')
-      : [`هلا${name ? ` ${name}` : ''} 🌸`, `هذا رابط الدفع من Pamper Me${row.orderRef ? ` لطلبك ${row.orderRef}` : ''} بمبلغ ${amount}:`, row.l.checkoutUrl].join('\n')
+      ? [`Hi${name ? ` ${name}` : ''} 🌸`, `Here is your Pamper Me payment link${row.orderRef ? ` for order ${row.orderRef}` : ''} (${amount}):`, shortPayUrl(row.l.reference)].join('\n')
+      : [`هلا${name ? ` ${name}` : ''} 🌸`, `هذا رابط الدفع من Pamper Me${row.orderRef ? ` لطلبك ${row.orderRef}` : ''} بمبلغ ${amount}:`, shortPayUrl(row.l.reference)].join('\n')
   return { text, link: whatsappChatLink(row.l.customerPhoneE164, text) }
 }

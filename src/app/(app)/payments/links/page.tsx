@@ -9,7 +9,7 @@ import { formatDateTime, formatMoney } from '@/i18n/format'
 import { can } from '@/server/authz/actor'
 import { pagePermission } from '@/server/auth/current'
 import { NotFoundError } from '@/server/services/errors'
-import { linkDefaultsForOrder, listPaymentLinks, providerStates, type LinkListFilter } from '@/server/services/payment-links'
+import { linkDefaultsForOrder, listPaymentLinks, providerStates, type LinkListFilter, shortPayUrl } from '@/server/services/payment-links'
 import { CancelLinkButton, NewLinkForm, SettlementForms, WhatsappLinkButton, type LinkDefaults } from './link-forms'
 
 const TABS = ['new', 'all', 'open', 'paid', 'unlinked', 'settlement'] as const
@@ -83,7 +83,7 @@ export default async function PaymentLinksPage({ searchParams }: { searchParams:
                   {(l.status === 'open' || l.status === 'creating') && (
                     <div className="flex flex-wrap gap-2">
                       {l.checkoutUrl && <WhatsappLinkButton linkId={l.id} />}
-                      {l.checkoutUrl && <CopyButton value={l.checkoutUrl} label={t('paymentLinks.copy')} />}
+                      {l.checkoutUrl && <CopyButton value={shortPayUrl(l.reference)} label={t('paymentLinks.copy')} />}
                       <CancelLinkButton linkId={l.id} />
                     </div>
                   )}

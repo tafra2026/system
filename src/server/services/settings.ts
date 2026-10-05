@@ -37,6 +37,12 @@ export const SETTING_DEFAULTS = {
    * became due after it was switched on are sent, so switching on never floods old messages.
    */
   auto_whatsapp: { enabled: false, kinds: [], since: null } as { enabled: boolean; kinds: MessageKind[]; since: string | null },
+  /**
+   * New confirmed bookings get a driver automatically (D85): the specialists' team driver first,
+   * else the least busy free driver. `travelMinutes` is the estimate used when Google Maps cannot
+   * calculate the route.
+   */
+  auto_assign_driver: { enabled: true, travelMinutes: 30 } as { enabled: boolean; travelMinutes: number },
 }
 export type SettingKey = keyof typeof SETTING_DEFAULTS
 
@@ -59,6 +65,7 @@ export async function getAllSettings(actor: Actor) {
     on_the_way_sender: await getSetting(db, 'on_the_way_sender'),
     business_contact: await getSetting(db, 'business_contact'),
     auto_whatsapp: await getSetting(db, 'auto_whatsapp'),
+    auto_assign_driver: await getSetting(db, 'auto_assign_driver'),
   }
 }
 
@@ -79,6 +86,7 @@ const settingSchemas = {
     .object({ phone: z.string().trim().max(40).optional(), email: z.string().trim().max(120).optional(), address: z.string().trim().max(200).optional(), website: z.string().trim().max(120).optional() })
     .nullable(),
   auto_whatsapp: z.object({ enabled: z.boolean(), kinds: z.array(z.enum(MESSAGE_KINDS)).max(MESSAGE_KINDS.length), since: z.iso.datetime().nullable() }),
+  auto_assign_driver: z.object({ enabled: z.boolean(), travelMinutes: z.number().int().min(5).max(180) }),
 } satisfies Record<SettingKey, z.ZodType>
 
 export async function setSetting<K extends SettingKey>(actor: Actor, key: K, value: (typeof SETTING_DEFAULTS)[K]) {

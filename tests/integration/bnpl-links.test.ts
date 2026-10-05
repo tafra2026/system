@@ -6,7 +6,7 @@ import { paymentLinks, payments } from '@/server/db/schema'
 import { useMockTabbyTransportForTests, type JsonTransport } from '@/server/integrations/tabby'
 import { useMockTamaraTransportForTests, verifyTamaraToken } from '@/server/integrations/tamara'
 import { cancelOrder, getOrderDetail, saveOrder } from '@/server/services/orders'
-import { createPaymentLink, syncTabbyPayment, syncTamaraOrder } from '@/server/services/payment-links'
+import { createPaymentLink, paymentLinkTarget, paymentLinkWhatsapp, syncTabbyPayment, syncTamaraOrder } from '@/server/services/payment-links'
 import { makeStaff, resetDb } from '../support/db'
 import { catalog, customerWithAddress, visit } from '../support/orders'
 
@@ -119,7 +119,16 @@ describe('Tabby links (development mock)', () => {
     expect(checkout.payment.buyer.phone).toBe(customer.phoneE164.slice(4))
     expect(checkout.merchant_urls.success).toBe('https://test.example/pay/return?provider=tabby')
 
+    // The customer gets a short branded link that opens the gateway's page.
+    expect(link.shortUrl).toMatch(/^https:\/\/test\.example\/p\/PL-[A-Z0-9]+$/)
+    const ref = link.shortUrl!.split('/p/')[1]!
+    expect(await paymentLinkTarget(ref)).toEqual({ kind: 'open', url: 'https://checkout.tabby.ai/?sessionId=sess_1' })
+    expect((await paymentLinkWhatsapp(mod.actor, link.id)).text).toContain(link.shortUrl!)
+    expect(await paymentLinkTarget('PL-NOPE00')).toEqual({ kind: 'closed' })
+    expect(await paymentLinkTarget('../etc')).toEqual({ kind: 'closed' })
+
     expect(await syncTabbyPayment('pay-tabby-0001')).toBe('paid')
+    expect(await paymentLinkTarget(ref)).toEqual({ kind: 'paid' })
     expect(reqs.filter((r) => r.url.endsWith('/captures'))).toHaveLength(1)
     // A repeated notification / return-page visit changes nothing.
     expect(await syncTabbyPayment('pay-tabby-0001')).toBe('duplicate')

@@ -67,10 +67,10 @@ export function NewLinkForm({ providers, defaults }: { providers: ProviderState[
       {created?.status === 'open' && created.checkoutUrl && (
         <div className="flex flex-col gap-2 rounded-xl border border-success/40 bg-success-soft p-3">
           <p className="text-sm font-semibold text-success">{t('paymentLinks.created')}</p>
-          <code className="ltr-data block break-all rounded-lg bg-surface p-2 text-xs">{created.checkoutUrl}</code>
+          <code className="ltr-data block break-all rounded-lg bg-surface p-2 text-sm" dir="ltr">{created.shortUrl ?? created.checkoutUrl}</code>
           <div className="flex flex-wrap gap-2">
             <WhatsappLinkButton linkId={created.id} />
-            <CopyButton value={created.checkoutUrl} label={t('paymentLinks.copy')} />
+            <CopyButton value={created.shortUrl ?? created.checkoutUrl} label={t('paymentLinks.copy')} />
           </div>
         </div>
       )}

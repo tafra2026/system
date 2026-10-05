@@ -4,7 +4,7 @@ import { DomainError } from '@/domain/errors'
 import { mapsLink } from '@/domain/order'
 import { addDays, operationalDateOf } from '@/domain/operational-day'
 import { legTimes, validateBuffer, validateTravelMinutes, type LegKind } from '@/domain/trips'
-import { authorize, type Actor } from '../authz/actor'
+import { authorize, can, type Actor } from '../authz/actor'
 import { ForbiddenError } from '../authz/errors'
 import { writeAudit } from '../audit'
 import { getDb, type Executor } from '../db'
@@ -15,7 +15,7 @@ import { getSetting } from './settings'
 import { teamsOn } from './teams'
 import { syncLegsForVisit } from './trip-sync'
 import { syncMessageTasks } from './messages'
-import { notifyTripProgress, notifyVisitChanges, visitPeople } from './notifications'
+import { notifyDriverNeeded, notifyTripProgress, notifyVisitChanges, visitPeople } from './notifications'
 import { employeesOffOn } from './time-off'
 import { parseWith, pgConstraint, pgErrorCode } from './validation'
 
@@ -357,6 +357,89 @@ export async function markLegStep(actor: Actor, legId: string, step: TripStep) {
     }
     await writeAudit(tx, { actorUserId: actor.userId, action: `trip.leg_${step}`, entityType: 'visit', entityId: leg.visitId, after: { kind: leg.kind } })
     await notifyTripProgress(tx, legId, step, actor.userId)
+  })
+}
+
+// ─────────────────────────────── Automatic driver (D85) ───────────────────────────────
+
+/**
+ * Give each scheduled visit of a newly confirmed order a drop-off trip, without anyone opening
+ * the trip planner. Candidates in order: the driver of the specialists' team that day, then the
+ * other active drivers who are not off, least busy first. Each candidate goes through the same
+ * checks as a manual assignment (saveLeg: day off, overlapping trips, specialist time); the first
+ * one that fits gets the trip and his normal "new trip" notification. If nobody fits, the people
+ * who plan trips are notified and the order shows as "awaiting a driver".
+ * Never throws: the booking itself is already saved.
+ */
+export async function autoAssignDrivers(actor: Actor, orderId: string): Promise<{ assigned: number; unassigned: number }> {
+  const result = { assigned: 0, unassigned: 0 }
+  try {
+    if (!can(actor, 'schedule.manage')) return result
+    const db = getDb()
+    const config = await getSetting(db, 'auto_assign_driver')
+    if (!config.enabled) return result
+    const [o] = await db.select({ status: orders.status, addressSnapshot: orders.addressSnapshot }).from(orders).where(eq(orders.id, orderId))
+    if (!o || o.status !== 'confirmed') return result
+    const vs = await db.select().from(visits).where(and(eq(visits.orderId, orderId), eq(visits.status, 'scheduled')))
+    const buffer = await getSetting(db, 'default_buffer_minutes')
+    for (const v of vs) {
+      if (!v.startsAt || !v.operationalDate) continue
+      const [existing] = await db.select({ id: tripLegs.id }).from(tripLegs).where(and(eq(tripLegs.visitId, v.id), eq(tripLegs.kind, 'dropoff')))
+      if (existing) continue
+      const candidates = await driverCandidates(db, v.id, v.operationalDate)
+      let done = false
+      for (const driverId of candidates) {
+        try {
+          // Google route when possible, otherwise the configured estimate.
+          try {
+            if (mapsConfigured()) {
+              await saveLeg(actor, v.id, { kind: 'dropoff', driverId, originVisitId: null, mode: 'google', bufferMinutes: buffer })
+              done = true
+              break
+            }
+          } catch (err) {
+            if (!(err instanceof ValidationError) || !['maps_unavailable', 'coords_missing'].includes(err.code)) throw err
+          }
+          await saveLeg(actor, v.id, { kind: 'dropoff', driverId, originVisitId: null, mode: 'manual', travelMinutes: config.travelMinutes, bufferMinutes: buffer })
+          done = true
+          break
+        } catch (err) {
+          // This driver does not fit (busy, day off …): try the next one.
+          if (!(err instanceof ValidationError)) throw err
+          if (err.code === 'start_point_missing') break
+        }
+      }
+      if (done) result.assigned++
+      else {
+        result.unassigned++
+        await notifyDriverNeeded(db, orderId, v.startsAt)
+      }
+    }
+  } catch (err) {
+    console.error('Automatic driver assignment failed:', err instanceof Error ? err.name : 'unknown')
+  }
+  return result
+}
+
+async function driverCandidates(db: Executor, visitId: string, date: string): Promise<string[]> {
+  const drivers = await db.select({ id: employees.id }).from(employees).where(and(eq(employees.role, 'driver'), eq(employees.status, 'active'))).orderBy(asc(employees.createdAt))
+  if (!drivers.length) return []
+  const off = await employeesOffOn(db, drivers.map((d) => d.id), date)
+  const free = drivers.map((d) => d.id).filter((id) => !off.has(id))
+  const specs = await db.select({ id: visitSpecialists.employeeId }).from(visitSpecialists).where(eq(visitSpecialists.visitId, visitId))
+  const teamOf = await teamsOn(db, [...specs.map((s) => s.id), ...free], date)
+  const teams = new Set(specs.map((s) => teamOf.get(s.id)).filter(Boolean))
+  const load = new Map<string, number>()
+  const dayLegs = await db
+    .select({ driver: tripLegs.driverEmployeeId })
+    .from(tripLegs)
+    .innerJoin(visits, eq(visits.id, tripLegs.visitId))
+    .where(and(eq(visits.operationalDate, date), eq(tripLegs.blocking, true)))
+  for (const l of dayLegs) load.set(l.driver, (load.get(l.driver) ?? 0) + 1)
+  return free.sort((a, b) => {
+    const ta = teams.has(teamOf.get(a)) ? 0 : 1
+    const tb = teams.has(teamOf.get(b)) ? 0 : 1
+    return ta - tb || (load.get(a) ?? 0) - (load.get(b) ?? 0)
   })
 }
 

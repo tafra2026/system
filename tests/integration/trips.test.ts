@@ -199,3 +199,43 @@ describe('driver progress and reassignment (driver app)', () => {
     expect((await myNotifications(driver.actor)).filter((n) => n.title.startsWith('تحديث مشوار'))).toHaveLength(0)
   })
 })
+
+describe('automatic driver for new bookings (D85)', () => {
+  it('assigns the team driver at once, falls back to a free driver, and asks for help when nobody fits', async () => {
+    const { owner, mod, s1, s2, driver, book } = await setup()
+    const { autoAssignDrivers } = await import('@/server/services/trips')
+    const { myNotifications } = await import('@/server/services/notifications')
+    const d2 = await makeStaff('driver', 'D2')
+    const team = await createTeam(owner.actor, 'فريق أ')
+    await setTeamMembership(owner.actor, s1.employee.id, team.id, riyadhToday())
+    await setTeamMembership(owner.actor, d2.employee.id, team.id, riyadhToday())
+
+    // s1 is in D2's team → D2 gets the trip, and is notified.
+    const a = await book('20:00', s1.employee.id, '2030-10-01')
+    expect(await autoAssignDrivers(mod.actor, a.orderId)).toEqual({ assigned: 1, unassigned: 0 })
+    expect((await myTrips(d2.actor, '2030-10-01', '2030-10-01')).map((l) => l.visitId)).toEqual([a.id])
+    expect((await myNotifications(d2.actor)).some((n) => n.title.includes('مشوار جديد'))).toBe(true)
+    // Running it again changes nothing.
+    expect(await autoAssignDrivers(mod.actor, a.orderId)).toEqual({ assigned: 0, unassigned: 0 })
+
+    // Same time, other specialist: D2 is busy → the free driver D1 takes it.
+    const b = await book('20:00', s2.employee.id, '2030-10-01')
+    expect(await autoAssignDrivers(mod.actor, b.orderId)).toEqual({ assigned: 1, unassigned: 0 })
+    expect((await myTrips(driver.actor, '2030-10-01', '2030-10-01')).map((l) => l.visitId)).toEqual([b.id])
+
+    // A third booking at the same time: both drivers busy → nobody, and planners are told.
+    const s3 = await makeStaff('specialist', 'S3')
+    const c = await book('20:00', s3.employee.id, '2030-10-01')
+    expect(await autoAssignDrivers(mod.actor, c.orderId)).toEqual({ assigned: 0, unassigned: 1 })
+    expect((await myNotifications(owner.actor)).some((n) => n.title === 'طلب بدون سائق')).toBe(true)
+  })
+
+  it('does nothing when switched off', async () => {
+    const { owner, mod, s1, book } = await setup()
+    const { autoAssignDrivers } = await import('@/server/services/trips')
+    await setSetting(owner.actor, 'auto_assign_driver', { enabled: false, travelMinutes: 30 })
+    const a = await book('20:00', s1.employee.id, '2030-10-01')
+    expect(await autoAssignDrivers(mod.actor, a.orderId)).toEqual({ assigned: 0, unassigned: 0 })
+  })
+})
+

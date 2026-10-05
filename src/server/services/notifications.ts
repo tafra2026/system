@@ -141,6 +141,19 @@ export async function notifyTripProgress(tx: Executor, legId: string, step: NonN
   })
 }
 
+/** No driver could be assigned automatically: the people who plan trips are told. */
+export async function notifyDriverNeeded(tx: Executor, orderId: string, visitStartsAt: Date | null) {
+  const [o] = await tx.select({ reference: orders.reference }).from(orders).where(eq(orders.id, orderId))
+  if (!o) return
+  await notify(tx, {
+    userIds: await activeUsersWith(tx, 'schedule.manage'),
+    kind: 'driver_needed',
+    params: { reference: o.reference, at: visitStartsAt?.toISOString() },
+    link: '/trips',
+    dedupeKey: `driver_needed:${orderId}:${visitStartsAt?.toISOString() ?? ''}`,
+  })
+}
+
 // ─────────────────────────────── Payments ───────────────────────────────
 
 export async function notifyTransferPending(tx: Executor, reference: string, amountHalalas: number, actorUserId: string) {

@@ -5,7 +5,7 @@ import { Field, FormStatus, inputClass, SubmitButton, useFieldErrors } from '@/c
 import { useI18n } from '@/components/i18n-provider'
 import { Badge } from '@/components/ui'
 import type { ActionState } from '@/server/actions'
-import { autoWhatsappTestAction, setAutoWhatsappAction, setBusinessContactAction, setBufferAction, setDaysOffAction, setMessageOptionsAction, setMessageTemplatesAction, setStartPointAction, setVipPackagesAction } from './actions'
+import { autoWhatsappTestAction, setAutoDriverAction, setAutoWhatsappAction, setBusinessContactAction, setBufferAction, setDaysOffAction, setMessageOptionsAction, setMessageTemplatesAction, setStartPointAction, setVipPackagesAction } from './actions'
 import { DEFAULT_MESSAGE_TEMPLATES, MESSAGE_KINDS, MESSAGE_PLACEHOLDERS, type MessageKind, type MessageLocale } from '@/domain/messages'
 
 const initial = { ok: false } as ActionState<never>
@@ -216,5 +216,26 @@ export function AutoWhatsappForm({ value, configured }: { value: { enabled: bool
         </div>
       </form>
     </div>
+  )
+}
+
+/** Automatic driver for new bookings (D85). */
+export function AutoDriverForm({ value }: { value: { enabled: boolean; travelMinutes: number } }) {
+  const { t } = useI18n()
+  const [state, action] = useActionState(setAutoDriverAction, initial)
+  return (
+    <form action={action} className="flex flex-col gap-3">
+      <label className="flex min-h-11 items-center gap-2 text-sm font-semibold text-ink">
+        <input type="checkbox" name="enabled" defaultChecked={value.enabled} className="h-5 w-5 accent-[var(--color-brand-deep)]" />
+        {t('settings.autoDriver.enable')}
+      </label>
+      <Field label={t('settings.autoDriver.travelMinutes')} name="travelMinutes" hint={t('settings.autoDriver.travelHint')}>
+        {(p) => <input {...p} type="number" min={5} max={180} defaultValue={value.travelMinutes} className={`${inputClass} ltr-data max-w-32`} dir="ltr" required />}
+      </Field>
+      <FormStatus state={state} successText={t('common.saved')} />
+      <div>
+        <SubmitButton variant="secondary">{t('common.save')}</SubmitButton>
+      </div>
+    </form>
   )
 }

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { parseSarInput } from '@/domain/money'
 import { formString, runAction, type ActionState } from '@/server/actions'
 import { ValidationError } from '@/server/services/errors'
+import { autoAssignDrivers } from '@/server/services/trips'
 import {
   adjustLinePrice,
   changeOrderModerator,
@@ -17,7 +18,12 @@ import {
 } from '@/server/services/orders'
 
 export async function saveOrderAction(orderId: string | null, input: unknown, confirm: boolean): Promise<ActionState<{ id: string; reference: string; status: string }>> {
-  const result = await runAction((actor) => saveOrder(actor, orderId, input, { confirm }))
+  const result = await runAction(async (actor) => {
+    const saved = await saveOrder(actor, orderId, input, { confirm })
+    // A newly confirmed booking goes straight to a driver (D85); it never blocks the booking.
+    if (confirm && saved.status === 'confirmed') await autoAssignDrivers(actor, saved.id)
+    return saved
+  })
   if (result.ok && result.data) {
     revalidatePath('/orders')
     revalidatePath(`/orders/${result.data.id}`)

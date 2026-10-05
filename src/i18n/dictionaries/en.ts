@@ -506,6 +506,13 @@ const en: Dictionary = {
     category: 'Category',
   },
   settings: {
+    autoDriver: {
+      title: 'Automatic driver',
+      hint: 'Each new booking gets a driver as soon as it is confirmed: the specialists’ team driver first, then the least busy driver who is not off. If no driver fits, you get a “Booking without a driver” notification.',
+      enable: 'Turn on automatic driver',
+      travelMinutes: 'Estimated travel time (minutes)',
+      travelHint: 'Used when Google Maps cannot calculate the route. The trip can be changed later in Trips.',
+    },
     autoWa: {
       title: 'Automatic WhatsApp (UltraMsg)',
       hint: 'The system sends messages itself from the business WhatsApp number linked to UltraMsg.',
@@ -917,6 +924,7 @@ const en: Dictionary = {
       transfer_pending: { title: 'Transfer awaiting approval', body: '{amount} — {reference}' },
       payment_confirmed: { title: 'Payment approved', body: '{amount} — {reference}' },
       payment_rejected: { title: 'Payment rejected', body: '{amount} — {reference}' },
+      driver_needed: { title: 'Booking without a driver', body: 'No driver could be assigned to order {reference} — {time}. Assign one in Trips.' },
       trip_progress: { title: 'Trip update: {step}', body: '{driver} — {leg} — order {reference}' },
     },
     push: {

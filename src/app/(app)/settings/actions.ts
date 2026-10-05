@@ -107,3 +107,12 @@ export async function autoWhatsappTestAction(_prev: ActionState, form: FormData)
     }),
   )
 }
+
+export async function setAutoDriverAction(_prev: ActionState, form: FormData): Promise<ActionState> {
+  return done(
+    await runAction(async (actor) => {
+      const minutes = Number(formString(form, 'travelMinutes'))
+      await setSetting(actor, 'auto_assign_driver', { enabled: form.get('enabled') === 'on', travelMinutes: Number.isInteger(minutes) ? minutes : 30 })
+    }),
+  )
+}
