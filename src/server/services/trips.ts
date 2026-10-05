@@ -382,37 +382,44 @@ export async function autoAssignDrivers(actor: Actor, orderId: string): Promise<
     if (!o || o.status !== 'confirmed') return result
     const vs = await db.select().from(visits).where(and(eq(visits.orderId, orderId), eq(visits.status, 'scheduled')))
     const buffer = await getSetting(db, 'default_buffer_minutes')
+    // Drop-off (to the customer) and, unless switched off, pick-up (back after the visit).
+    const kinds: LegKind[] = config.pickup === false ? ['dropoff'] : ['dropoff', 'pickup']
     for (const v of vs) {
       if (!v.startsAt || !v.operationalDate) continue
-      const [existing] = await db.select({ id: tripLegs.id }).from(tripLegs).where(and(eq(tripLegs.visitId, v.id), eq(tripLegs.kind, 'dropoff')))
-      if (existing) continue
-      const candidates = await driverCandidates(db, v.id, v.operationalDate)
-      let done = false
-      for (const driverId of candidates) {
-        try {
-          // Google route when possible, otherwise the configured estimate.
+      const legsNow = await db.select({ kind: tripLegs.kind, driver: tripLegs.driverEmployeeId }).from(tripLegs).where(eq(tripLegs.visitId, v.id))
+      const ranked = await driverCandidates(db, v.id, v.operationalDate)
+      for (const kind of kinds) {
+        if (legsNow.some((l) => l.kind === kind)) continue
+        // The pick-up goes to the same driver as the drop-off when he is free.
+        const dropDriver = (await db.select({ d: tripLegs.driverEmployeeId }).from(tripLegs).where(and(eq(tripLegs.visitId, v.id), eq(tripLegs.kind, 'dropoff'))))[0]?.d
+        const candidates = kind === 'pickup' && dropDriver ? [dropDriver, ...ranked.filter((id) => id !== dropDriver)] : ranked
+        let done = false
+        for (const driverId of candidates) {
           try {
-            if (mapsConfigured()) {
-              await saveLeg(actor, v.id, { kind: 'dropoff', driverId, originVisitId: null, mode: 'google', bufferMinutes: buffer })
-              done = true
-              break
+            // Google route when possible, otherwise the configured estimate.
+            try {
+              if (mapsConfigured()) {
+                await saveLeg(actor, v.id, { kind, driverId, originVisitId: null, mode: 'google', bufferMinutes: buffer })
+                done = true
+                break
+              }
+            } catch (err) {
+              if (!(err instanceof ValidationError) || !['maps_unavailable', 'coords_missing'].includes(err.code)) throw err
             }
+            await saveLeg(actor, v.id, { kind, driverId, originVisitId: null, mode: 'manual', travelMinutes: config.travelMinutes, bufferMinutes: buffer })
+            done = true
+            break
           } catch (err) {
-            if (!(err instanceof ValidationError) || !['maps_unavailable', 'coords_missing'].includes(err.code)) throw err
+            // This driver does not fit (busy, day off …): try the next one.
+            if (!(err instanceof ValidationError)) throw err
+            if (err.code === 'start_point_missing') break
           }
-          await saveLeg(actor, v.id, { kind: 'dropoff', driverId, originVisitId: null, mode: 'manual', travelMinutes: config.travelMinutes, bufferMinutes: buffer })
-          done = true
-          break
-        } catch (err) {
-          // This driver does not fit (busy, day off …): try the next one.
-          if (!(err instanceof ValidationError)) throw err
-          if (err.code === 'start_point_missing') break
         }
-      }
-      if (done) result.assigned++
-      else {
-        result.unassigned++
-        await notifyDriverNeeded(db, orderId, v.startsAt)
+        if (done) result.assigned++
+        else {
+          result.unassigned++
+          await notifyDriverNeeded(db, orderId, v.startsAt, kind)
+        }
       }
     }
   } catch (err) {

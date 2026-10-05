@@ -220,7 +220,7 @@ export function AutoWhatsappForm({ value, configured }: { value: { enabled: bool
 }
 
 /** Automatic driver for new bookings (D85). */
-export function AutoDriverForm({ value }: { value: { enabled: boolean; travelMinutes: number } }) {
+export function AutoDriverForm({ value }: { value: { enabled: boolean; travelMinutes: number; pickup?: boolean } }) {
   const { t } = useI18n()
   const [state, action] = useActionState(setAutoDriverAction, initial)
   return (
@@ -228,6 +228,10 @@ export function AutoDriverForm({ value }: { value: { enabled: boolean; travelMin
       <label className="flex min-h-11 items-center gap-2 text-sm font-semibold text-ink">
         <input type="checkbox" name="enabled" defaultChecked={value.enabled} className="h-5 w-5 accent-[var(--color-brand-deep)]" />
         {t('settings.autoDriver.enable')}
+      </label>
+      <label className="flex min-h-11 items-center gap-2 text-sm text-ink">
+        <input type="checkbox" name="pickup" defaultChecked={value.pickup !== false} className="h-5 w-5 accent-[var(--color-brand-deep)]" />
+        {t('settings.autoDriver.pickup')}
       </label>
       <Field label={t('settings.autoDriver.travelMinutes')} name="travelMinutes" hint={t('settings.autoDriver.travelHint')}>
         {(p) => <input {...p} type="number" min={5} max={180} defaultValue={value.travelMinutes} className={`${inputClass} ltr-data max-w-32`} dir="ltr" required />}

@@ -112,7 +112,7 @@ export async function setAutoDriverAction(_prev: ActionState, form: FormData): P
   return done(
     await runAction(async (actor) => {
       const minutes = Number(formString(form, 'travelMinutes'))
-      await setSetting(actor, 'auto_assign_driver', { enabled: form.get('enabled') === 'on', travelMinutes: Number.isInteger(minutes) ? minutes : 30 })
+      await setSetting(actor, 'auto_assign_driver', { enabled: form.get('enabled') === 'on', pickup: form.get('pickup') === 'on', travelMinutes: Number.isInteger(minutes) ? minutes : 30 })
     }),
   )
 }

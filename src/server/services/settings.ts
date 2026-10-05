@@ -42,7 +42,7 @@ export const SETTING_DEFAULTS = {
    * else the least busy free driver. `travelMinutes` is the estimate used when Google Maps cannot
    * calculate the route.
    */
-  auto_assign_driver: { enabled: true, travelMinutes: 30 } as { enabled: boolean; travelMinutes: number },
+  auto_assign_driver: { enabled: true, travelMinutes: 30, pickup: true } as { enabled: boolean; travelMinutes: number; pickup?: boolean },
 }
 export type SettingKey = keyof typeof SETTING_DEFAULTS
 
@@ -86,7 +86,7 @@ const settingSchemas = {
     .object({ phone: z.string().trim().max(40).optional(), email: z.string().trim().max(120).optional(), address: z.string().trim().max(200).optional(), website: z.string().trim().max(120).optional() })
     .nullable(),
   auto_whatsapp: z.object({ enabled: z.boolean(), kinds: z.array(z.enum(MESSAGE_KINDS)).max(MESSAGE_KINDS.length), since: z.iso.datetime().nullable() }),
-  auto_assign_driver: z.object({ enabled: z.boolean(), travelMinutes: z.number().int().min(5).max(180) }),
+  auto_assign_driver: z.object({ enabled: z.boolean(), travelMinutes: z.number().int().min(5).max(180), pickup: z.boolean().optional() }),
 } satisfies Record<SettingKey, z.ZodType>
 
 export async function setSetting<K extends SettingKey>(actor: Actor, key: K, value: (typeof SETTING_DEFAULTS)[K]) {

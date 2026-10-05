@@ -142,15 +142,15 @@ export async function notifyTripProgress(tx: Executor, legId: string, step: NonN
 }
 
 /** No driver could be assigned automatically: the people who plan trips are told. */
-export async function notifyDriverNeeded(tx: Executor, orderId: string, visitStartsAt: Date | null) {
+export async function notifyDriverNeeded(tx: Executor, orderId: string, visitStartsAt: Date | null, legKind: 'dropoff' | 'pickup' = 'dropoff') {
   const [o] = await tx.select({ reference: orders.reference }).from(orders).where(eq(orders.id, orderId))
   if (!o) return
   await notify(tx, {
     userIds: await activeUsersWith(tx, 'schedule.manage'),
     kind: 'driver_needed',
-    params: { reference: o.reference, at: visitStartsAt?.toISOString() },
+    params: { reference: o.reference, at: visitStartsAt?.toISOString(), leg: legKind },
     link: '/trips',
-    dedupeKey: `driver_needed:${orderId}:${visitStartsAt?.toISOString() ?? ''}`,
+    dedupeKey: `driver_needed:${orderId}:${legKind}:${visitStartsAt?.toISOString() ?? ''}`,
   })
 }
 

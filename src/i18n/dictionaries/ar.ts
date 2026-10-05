@@ -512,6 +512,7 @@ const ar = {
       title: 'إسناد السائق تلقائيًا',
       hint: 'كل حجز جديد يُسند لسائق فور تأكيده: سائق فريق الأخصائيات أولًا، ثم الأقل انشغالًا من السائقين غير المجازين. إذا لم يناسب أي سائق يصلكم إشعار «طلب بدون سائق».',
       enable: 'تشغيل الإسناد التلقائي',
+      pickup: 'مشوار الرجوع (الاستلام بعد انتهاء الزيارة) تلقائيًا أيضًا',
       travelMinutes: 'وقت الطريق التقديري (دقيقة)',
       travelHint: 'يُستخدم عندما لا تستطيع خرائط Google حساب الطريق. يمكن تعديل المشوار لاحقًا من «المشاوير».',
     },
@@ -926,7 +927,7 @@ const ar = {
       transfer_pending: { title: 'تحويل بانتظار الاعتماد', body: '{amount} — {reference}' },
       payment_confirmed: { title: 'تم اعتماد الدفعة', body: '{amount} — {reference}' },
       payment_rejected: { title: 'رُفضت الدفعة', body: '{amount} — {reference}' },
-      driver_needed: { title: 'طلب بدون سائق', body: 'لم يُسند سائق تلقائيًا للطلب {reference} — {time}. حدده من «المشاوير».' },
+      driver_needed: { title: 'طلب بدون سائق', body: 'لم يُسند سائق ({leg}) للطلب {reference} — {time}. حدده من «المشاوير».' },
       trip_progress: { title: 'تحديث مشوار: {step}', body: '{driver} — {leg} — طلب {reference}' },
     },
     push: {

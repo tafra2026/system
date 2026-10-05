@@ -212,22 +212,34 @@ describe('automatic driver for new bookings (D85)', () => {
 
     // s1 is in D2's team → D2 gets the trip, and is notified.
     const a = await book('20:00', s1.employee.id, '2030-10-01')
-    expect(await autoAssignDrivers(mod.actor, a.orderId)).toEqual({ assigned: 1, unassigned: 0 })
-    expect((await myTrips(d2.actor, '2030-10-01', '2030-10-01')).map((l) => l.visitId)).toEqual([a.id])
+    expect(await autoAssignDrivers(mod.actor, a.orderId)).toEqual({ assigned: 2, unassigned: 0 })
+    // Drop-off and the return pick-up, both with D2.
+    expect((await myTrips(d2.actor, '2030-10-01', '2030-10-01')).map((l) => [l.visitId, l.kind])).toEqual([
+      [a.id, 'dropoff'],
+      [a.id, 'pickup'],
+    ])
     expect((await myNotifications(d2.actor)).some((n) => n.title.includes('مشوار جديد'))).toBe(true)
     // Running it again changes nothing.
     expect(await autoAssignDrivers(mod.actor, a.orderId)).toEqual({ assigned: 0, unassigned: 0 })
 
     // Same time, other specialist: D2 is busy → the free driver D1 takes it.
     const b = await book('20:00', s2.employee.id, '2030-10-01')
-    expect(await autoAssignDrivers(mod.actor, b.orderId)).toEqual({ assigned: 1, unassigned: 0 })
-    expect((await myTrips(driver.actor, '2030-10-01', '2030-10-01')).map((l) => l.visitId)).toEqual([b.id])
+    expect(await autoAssignDrivers(mod.actor, b.orderId)).toEqual({ assigned: 2, unassigned: 0 })
+    expect((await myTrips(driver.actor, '2030-10-01', '2030-10-01')).map((l) => l.visitId)).toEqual([b.id, b.id])
 
     // A third booking at the same time: both drivers busy → nobody, and planners are told.
     const s3 = await makeStaff('specialist', 'S3')
     const c = await book('20:00', s3.employee.id, '2030-10-01')
-    expect(await autoAssignDrivers(mod.actor, c.orderId)).toEqual({ assigned: 0, unassigned: 1 })
+    expect(await autoAssignDrivers(mod.actor, c.orderId)).toEqual({ assigned: 0, unassigned: 2 })
     expect((await myNotifications(owner.actor)).some((n) => n.title === 'طلب بدون سائق')).toBe(true)
+  })
+
+  it('the return trip can be switched off on its own', async () => {
+    const { owner, mod, s1, book } = await setup()
+    const { autoAssignDrivers } = await import('@/server/services/trips')
+    await setSetting(owner.actor, 'auto_assign_driver', { enabled: true, pickup: false, travelMinutes: 30 })
+    const a = await book('20:00', s1.employee.id, '2030-10-01')
+    expect(await autoAssignDrivers(mod.actor, a.orderId)).toEqual({ assigned: 1, unassigned: 0 })
   })
 
   it('does nothing when switched off', async () => {
