@@ -91,7 +91,7 @@ export async function createIntention(input: IntentionInput, timeoutMs = 15_000)
       first_name: first || 'Customer',
       last_name: rest.join(' ') || 'NA',
       phone_number: input.phoneE164,
-      email: 'NA',
+      // No customer email is stored; Paymob validates the field when present, so it is left out.
       country: 'SA',
     },
     special_reference: input.reference,

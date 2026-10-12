@@ -34,14 +34,16 @@ export function tabbyConfigured(): boolean {
 export function providerErrorDetail(data: unknown, status: number): string {
   const d = (data ?? {}) as Record<string, unknown>
   const parts: string[] = []
-  for (const k of ['error', 'message', 'errorType', 'error_code']) if (typeof d[k] === 'string') parts.push(d[k] as string)
+  for (const k of ['error', 'message', 'detail', 'errorType', 'error_code']) if (typeof d[k] === 'string') parts.push(d[k] as string)
   for (const k of ['errors', 'details']) {
     const v = d[k]
     if (Array.isArray(v)) for (const e of v.slice(0, 3)) parts.push(typeof e === 'string' ? e : JSON.stringify(e))
     else if (v && typeof v === 'object') parts.push(JSON.stringify(v))
   }
+  // Field-by-field validation answers (e.g. {"payment_methods": ["…"]}): show them as they are.
+  if (!parts.length && data && typeof data === 'object') parts.push(JSON.stringify(data))
   const text = [`HTTP ${status}`, ...parts].join(' — ')
-  return text.replace(/\+?\d{7,}/g, '…').replace(/\b(?:(?:sau|egy|are|omn|pak)_)?(sk|pk)_[A-Za-z0-9_]+/g, '…').slice(0, 200)
+  return text.replace(/\+?\d{7,}/g, '…').replace(/\b(?:(?:sau|egy|are|omn|pak)_)?(sk|pk)_[A-Za-z0-9_]+/g, '…').slice(0, 300)
 }
 
 /** Header value check for Tabby's webhook (constant-time). */

@@ -90,6 +90,8 @@ describe('Paymob with only the three dashboard keys (no integration ids)', () =>
       const a = await createPaymentLink(mod.actor, { provider: 'paymob', orderId, phone: customer.phoneE164, amountHalalas: 5000, idempotencyKey: 'k-3keys-0001' })
       expect(a.status).toBe('open')
       expect(calls[0]!.body.payment_methods).toEqual(['card'])
+      // No made-up email: Paymob rejects an invalid one.
+      expect((calls[0]!.body.billing_data as Record<string, unknown>).email).toBeUndefined()
       mockPaymob('reject')
       const b = await createPaymentLink(mod.actor, { provider: 'paymob', orderId, phone: customer.phoneE164, amountHalalas: 1000, idempotencyKey: 'k-3keys-0002' })
       expect(b.status).toBe('failed')
