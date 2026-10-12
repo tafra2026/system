@@ -54,7 +54,7 @@
 | `PAYMOB_SECRET_KEY` | المفتاح السري من لوحة Paymob |
 | `PAYMOB_PUBLIC_KEY` | المفتاح العام |
 | `PAYMOB_HMAC_SECRET` | سر HMAC للتحقق من الإشعارات |
-| `PAYMOB_INTEGRATIONS` | **اختياري.** بدونه يُرسل النظام وسيلة «card» بالاسم. لإضافة Apple Pay أو STC Pay أو لتحديد تكامل معين: `card:111,apple_pay:222,stc_pay:333` |
+| `PAYMOB_INTEGRATIONS` | **اختياري — الأسهل إدخال الأرقام من داخل التطبيق: الإعدادات ← الدفع بالبطاقة (Paymob).** بدونه يُرسل النظام وسيلة «card» بالاسم. لإضافة Apple Pay أو STC Pay أو لتحديد تكامل معين: `card:111,apple_pay:222,stc_pay:333` |
 | `PAYMOB_BASE_URL` | اختياري؛ الافتراضي `https://ksa.paymob.com` |
 
 في لوحة Paymob:

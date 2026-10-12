@@ -23,22 +23,31 @@ export function paymobBaseUrl(): string {
   return (process.env.PAYMOB_BASE_URL?.trim() || 'https://ksa.paymob.com').replace(/\/$/, '')
 }
 
-/** Methods that have an integration id configured — only these are offered. */
-export function paymobIntegrations(): Map<PaymobMethod, number> {
+export type PaymobIntegrationIds = Partial<Record<PaymobMethod, number>>
+
+/**
+ * Integration ids per method: from Settings (entered by management in the app) and/or
+ * PAYMOB_INTEGRATIONS ("card:123,apple_pay:456"). Settings win. Only these methods are offered.
+ */
+export function paymobIntegrations(fromSettings: PaymobIntegrationIds = {}): Map<PaymobMethod, number> {
   const out = new Map<PaymobMethod, number>()
   for (const part of (process.env.PAYMOB_INTEGRATIONS ?? '').split(',')) {
     const [name, id] = part.split(':').map((x) => x?.trim())
     if (name && id && (PAYMOB_METHODS as readonly string[]).includes(name) && /^\d+$/.test(id)) out.set(name as PaymobMethod, Number(id))
   }
+  for (const m of PAYMOB_METHODS) {
+    const id = fromSettings[m]
+    if (typeof id === 'number' && Number.isSafeInteger(id) && id > 0) out.set(m, id)
+  }
   return out
 }
 
 /**
- * Methods offered on links. With PAYMOB_INTEGRATIONS set: exactly those. Without it (only the three
- * keys from the dashboard): the card integration, sent by name — Paymob resolves it on the account.
+ * Methods offered on links. With integration ids: exactly those. Without any: the card method by
+ * name (Paymob answers with a clear error if the account has no integration of that name).
  */
-export function paymobMethods(): PaymobMethod[] {
-  const ids = paymobIntegrations()
+export function paymobMethods(fromSettings: PaymobIntegrationIds = {}): PaymobMethod[] {
+  const ids = paymobIntegrations(fromSettings)
   return ids.size ? [...ids.keys()] : ['card']
 }
 
@@ -60,6 +69,8 @@ export interface IntentionInput {
   description: string
   notificationUrl: string
   redirectionUrl: string
+  /** Integration ids entered in Settings. */
+  integrationIds?: PaymobIntegrationIds
 }
 
 export type IntentionResult =
@@ -78,7 +89,7 @@ export function useMockPaymobTransportForTests(mock: HttpTransport | null) {
 }
 
 export async function createIntention(input: IntentionInput, timeoutMs = 15_000): Promise<IntentionResult> {
-  const integrations = paymobIntegrations()
+  const integrations = paymobIntegrations(input.integrationIds)
   // Integration ids when configured, otherwise the method names (e.g. "card").
   const ids: (number | string)[] = integrations.size ? input.methods.map((m) => integrations.get(m)).filter((x): x is number => typeof x === 'number') : input.methods
   const [first, ...rest] = (input.customerName ?? 'Customer').trim().split(/\s+/)

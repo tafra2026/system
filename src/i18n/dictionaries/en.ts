@@ -506,6 +506,16 @@ const en: Dictionary = {
     category: 'Category',
   },
   settings: {
+    paymob: {
+      title: 'Card payments (Paymob)',
+      hint: 'Payment method numbers from your Paymob account. They are numbers, not secret keys.',
+      keysOk: 'Paymob keys are set on the server',
+      keysMissing: 'Paymob keys are missing on the server',
+      where: 'Find them in the Paymob dashboard: Developers → Payment Integrations (the ID next to each method). Use Test numbers with test keys and Live numbers with live keys.',
+      card: 'Card / mada ID',
+      apple_pay: 'Apple Pay ID',
+      stc_pay: 'STC Pay ID',
+    },
     autoDriver: {
       title: 'Automatic driver',
       hint: 'Each new booking gets a driver as soon as it is confirmed: the specialists’ team driver first, then the least busy driver who is not off. If no driver fits, you get a “Booking without a driver” notification.',
@@ -1020,6 +1030,7 @@ const en: Dictionary = {
       tabby: 'Tabby splits the amount into 4 interest-free payments. Tabby may decline some customers based on eligibility.',
       tamara: 'Tamara splits the amount into payments; the customer approves on Tamara’s page. After creating the link, press WhatsApp to send it.',
     },
+    paymobIntegrationMissing: 'Paymob could not find the payment method. Enter the “Card / mada ID” from the Paymob dashboard in Settings → Card payments (Paymob).',
     notEligible: 'The gateway declined this customer (not eligible for instalments). Try another gateway.',
     notConfigured: 'Not enabled — merchant keys missing',
     integrationPending: 'Direct integration not enabled yet — record payments manually',
@@ -1132,6 +1143,7 @@ const en: Dictionary = {
     auto_test_rejected: 'UltraMsg refused the message: {detail}',
     auto_test_network: 'Could not reach UltraMsg ({detail}).',
     auto_test_unknown: 'No clear answer from UltraMsg ({detail}). Check on the phone whether the message arrived.',
+    integration_id_invalid: 'Enter the number only (digits, no letters).',
     supportCode: 'Error code for support: {code}',
     trip_step_order: 'Complete the previous step first (on the way, then arrived).',
     photo_heic: 'iPhone HEIC photos are not supported. In Settings → Camera → Formats choose "Most Compatible", or save the photo as JPEG first.',

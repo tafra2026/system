@@ -9,7 +9,7 @@ import { formatDateTime, formatMoney } from '@/i18n/format'
 import { can } from '@/server/authz/actor'
 import { pagePermission } from '@/server/auth/current'
 import { NotFoundError } from '@/server/services/errors'
-import { linkDefaultsForOrder, listPaymentLinks, providerStates, type LinkListFilter, shortPayUrl } from '@/server/services/payment-links'
+import { linkDefaultsForOrder, listPaymentLinks, providerStatesWithSettings, type LinkListFilter, shortPayUrl } from '@/server/services/payment-links'
 import { CancelLinkButton, NewLinkForm, SettlementForms, WhatsappLinkButton, type LinkDefaults } from './link-forms'
 
 const TABS = ['new', 'all', 'open', 'paid', 'unlinked', 'settlement'] as const
@@ -48,7 +48,7 @@ export default async function PaymentLinksPage({ searchParams }: { searchParams:
       </nav>
       {tab === 'new' ? (
         <Card>
-          <NewLinkForm providers={providerStates()} defaults={defaults} />
+          <NewLinkForm providers={await providerStatesWithSettings()} defaults={defaults} />
         </Card>
       ) : rows.length === 0 ? (
         <Card>

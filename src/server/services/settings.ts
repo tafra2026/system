@@ -42,6 +42,8 @@ export const SETTING_DEFAULTS = {
    * else the least busy free driver. `travelMinutes` is the estimate used when Google Maps cannot
    * calculate the route.
    */
+  /** Paymob integration ids (not secret) entered by management: Developers → Payment Integrations. */
+  paymob_integrations: {} as { card?: number; apple_pay?: number; stc_pay?: number },
   auto_assign_driver: { enabled: true, travelMinutes: 30, pickup: true } as { enabled: boolean; travelMinutes: number; pickup?: boolean },
 }
 export type SettingKey = keyof typeof SETTING_DEFAULTS
@@ -66,6 +68,7 @@ export async function getAllSettings(actor: Actor) {
     business_contact: await getSetting(db, 'business_contact'),
     auto_whatsapp: await getSetting(db, 'auto_whatsapp'),
     auto_assign_driver: await getSetting(db, 'auto_assign_driver'),
+    paymob_integrations: await getSetting(db, 'paymob_integrations'),
   }
 }
 
@@ -86,6 +89,7 @@ const settingSchemas = {
     .object({ phone: z.string().trim().max(40).optional(), email: z.string().trim().max(120).optional(), address: z.string().trim().max(200).optional(), website: z.string().trim().max(120).optional() })
     .nullable(),
   auto_whatsapp: z.object({ enabled: z.boolean(), kinds: z.array(z.enum(MESSAGE_KINDS)).max(MESSAGE_KINDS.length), since: z.iso.datetime().nullable() }),
+  paymob_integrations: z.object({ card: z.number().int().positive().optional(), apple_pay: z.number().int().positive().optional(), stc_pay: z.number().int().positive().optional() }),
   auto_assign_driver: z.object({ enabled: z.boolean(), travelMinutes: z.number().int().min(5).max(180), pickup: z.boolean().optional() }),
 } satisfies Record<SettingKey, z.ZodType>
 

@@ -17,6 +17,7 @@ import { orderBalance, syncCommissions } from './commissions'
 import { NotFoundError, ValidationError } from './errors'
 import { notifyPaymentDecision } from './notifications'
 import { parseWith } from './validation'
+import { getSetting } from './settings'
 
 /**
  * Online payment links (spec §12 + Paymob). Rules:
@@ -44,6 +45,12 @@ export function providerStates(): ProviderState[] {
     { provider: 'tabby', configured: tabbyConfigured(), methods: [], ...(tabbyConfigured() ? {} : { missing: 'keys' as const }) },
     { provider: 'tamara', configured: tamaraConfigured(), methods: [], ...(tamaraConfigured() ? {} : { missing: 'keys' as const }) },
   ]
+}
+
+/** Same as providerStates, with the Paymob integration ids entered in Settings. */
+export async function providerStatesWithSettings(): Promise<ProviderState[]> {
+  const ids = await getSetting(getDb(), 'paymob_integrations')
+  return providerStates().map((p) => (p.provider === 'paymob' ? { ...p, methods: paymobMethods(ids) } : p))
 }
 
 const OPEN: PaymentLink['status'][] = ['creating', 'open', 'authorized']
@@ -93,7 +100,7 @@ export async function createPaymentLink(actor: Actor, raw: unknown): Promise<Cre
   const input = parseWith(createSchema, raw)
   const phone = normalizePhone(input.phone)
   if (!phone) throw new ValidationError('validation_failed', { phone: 'phone_invalid' })
-  const state = providerStates().find((p) => p.provider === input.provider)!
+  const state = (await providerStatesWithSettings()).find((p) => p.provider === input.provider)!
   if (!state.configured) throw new ValidationError(state.missing === 'integration_pending' ? 'provider_integration_pending' : 'provider_not_configured')
   const methods = input.methods.filter((m) => state.methods.includes(m)) as PaymobMethod[]
   const useMethods = methods.length ? methods : (state.methods as PaymobMethod[])
@@ -169,7 +176,7 @@ export async function createPaymentLink(actor: Actor, raw: unknown): Promise<Cre
             cancelUrl: `${base}/pay/return?provider=tamara&result=cancel`,
             notificationUrl: `${base}/api/payments/tamara/webhook`,
           })
-        : await createIntention({ ...common, methods: useMethods, notificationUrl: `${base}/api/payments/paymob/webhook`, redirectionUrl: `${base}/pay/return` })
+        : await createIntention({ ...common, methods: useMethods, integrationIds: await getSetting(db, 'paymob_integrations'), notificationUrl: `${base}/api/payments/paymob/webhook`, redirectionUrl: `${base}/pay/return` })
   const [updated] = await db
     .update(paymentLinks)
     .set(

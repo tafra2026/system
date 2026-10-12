@@ -96,6 +96,14 @@ describe('Paymob with only the three dashboard keys (no integration ids)', () =>
       const b = await createPaymentLink(mod.actor, { provider: 'paymob', orderId, phone: customer.phoneE164, amountHalalas: 1000, idempotencyKey: 'k-3keys-0002' })
       expect(b.status).toBe('failed')
       expect(b.errorCode).toContain('HTTP 400')
+      // Management enters the card integration id in Settings: it is used from the next link on.
+      const { setSetting } = await import('@/server/services/settings')
+      const owner = await makeStaff('owner')
+      await setSetting(owner.actor, 'paymob_integrations', { card: 777001 })
+      const calls2 = mockPaymob()
+      const c = await createPaymentLink(mod.actor, { provider: 'paymob', orderId, phone: customer.phoneE164, amountHalalas: 1000, idempotencyKey: 'k-3keys-0003' })
+      expect(c.status).toBe('open')
+      expect(calls2[0]!.body.payment_methods).toEqual([777001])
     } finally {
       process.env.PAYMOB_INTEGRATIONS = keep
     }

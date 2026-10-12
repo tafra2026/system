@@ -77,7 +77,11 @@ export function NewLinkForm({ providers, defaults }: { providers: ProviderState[
       {created?.status === 'creating' && <Alert tone="warning">{t('paymentLinks.creatingUnknown')}</Alert>}
       {created?.status === 'failed' && (
         <Alert tone="error">
-          {created.errorCode?.startsWith('not_eligible') ? t('paymentLinks.notEligible') : t('paymentLinks.failed')}
+          {created.errorCode?.startsWith('not_eligible')
+            ? t('paymentLinks.notEligible')
+            : /Integration ID\/Name does not exist/i.test(created.errorCode ?? '')
+              ? t('paymentLinks.paymobIntegrationMissing')
+              : t('paymentLinks.failed')}
           {created.errorCode && !created.errorCode.startsWith('not_eligible') && (
             <span className="ltr-data mt-1 block break-words text-xs" dir="ltr">
               {created.errorCode}

@@ -5,7 +5,7 @@ import { Field, FormStatus, inputClass, SubmitButton, useFieldErrors } from '@/c
 import { useI18n } from '@/components/i18n-provider'
 import { Badge } from '@/components/ui'
 import type { ActionState } from '@/server/actions'
-import { autoWhatsappTestAction, setAutoDriverAction, setAutoWhatsappAction, setBusinessContactAction, setBufferAction, setDaysOffAction, setMessageOptionsAction, setMessageTemplatesAction, setStartPointAction, setVipPackagesAction } from './actions'
+import { autoWhatsappTestAction, setAutoDriverAction, setPaymobIntegrationsAction, setAutoWhatsappAction, setBusinessContactAction, setBufferAction, setDaysOffAction, setMessageOptionsAction, setMessageTemplatesAction, setStartPointAction, setVipPackagesAction } from './actions'
 import { DEFAULT_MESSAGE_TEMPLATES, MESSAGE_KINDS, MESSAGE_PLACEHOLDERS, type MessageKind, type MessageLocale } from '@/domain/messages'
 
 const initial = { ok: false } as ActionState<never>
@@ -236,6 +236,30 @@ export function AutoDriverForm({ value }: { value: { enabled: boolean; travelMin
       <Field label={t('settings.autoDriver.travelMinutes')} name="travelMinutes" hint={t('settings.autoDriver.travelHint')}>
         {(p) => <input {...p} type="number" min={5} max={180} defaultValue={value.travelMinutes} className={`${inputClass} ltr-data max-w-32`} dir="ltr" required />}
       </Field>
+      <FormStatus state={state} successText={t('common.saved')} />
+      <div>
+        <SubmitButton variant="secondary">{t('common.save')}</SubmitButton>
+      </div>
+    </form>
+  )
+}
+
+/** Paymob integration ids (Developers → Payment Integrations). Numbers, not secrets. */
+export function PaymobIntegrationsForm({ value, keysPresent }: { value: { card?: number; apple_pay?: number; stc_pay?: number }; keysPresent: boolean }) {
+  const { t } = useI18n()
+  const [state, action] = useActionState(setPaymobIntegrationsAction, initial)
+  const fieldError = useFieldErrors(state)
+  return (
+    <form action={action} className="flex flex-col gap-3">
+      <Badge tone={keysPresent ? 'success' : 'warning'}>{keysPresent ? t('settings.paymob.keysOk') : t('settings.paymob.keysMissing')}</Badge>
+      <p className="text-sm text-muted">{t('settings.paymob.where')}</p>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {(['card', 'apple_pay', 'stc_pay'] as const).map((k) => (
+          <Field key={k} label={t(`settings.paymob.${k}`)} name={k} error={fieldError(k)} optional={k !== 'card'}>
+            {(p) => <input {...p} inputMode="numeric" defaultValue={value[k] ?? ''} className={`${inputClass} ltr-data`} dir="ltr" placeholder="123456" maxLength={12} />}
+          </Field>
+        ))}
+      </div>
       <FormStatus state={state} successText={t('common.saved')} />
       <div>
         <SubmitButton variant="secondary">{t('common.save')}</SubmitButton>

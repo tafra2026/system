@@ -116,3 +116,20 @@ export async function setAutoDriverAction(_prev: ActionState, form: FormData): P
     }),
   )
 }
+
+export async function setPaymobIntegrationsAction(_prev: ActionState, form: FormData): Promise<ActionState> {
+  return done(
+    await runAction(async (actor) => {
+      const out: { card?: number; apple_pay?: number; stc_pay?: number } = {}
+      const errors: Record<string, string> = {}
+      for (const k of ['card', 'apple_pay', 'stc_pay'] as const) {
+        const raw = formString(form, k).replace(/\s/g, '')
+        if (!raw) continue
+        if (!/^\d{1,12}$/.test(raw)) errors[k] = 'integration_id_invalid'
+        else out[k] = Number(raw)
+      }
+      if (Object.keys(errors).length) throw new ValidationError('validation_failed', errors)
+      await setSetting(actor, 'paymob_integrations', out)
+    }),
+  )
+}
