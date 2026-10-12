@@ -96,6 +96,11 @@ describe('Paymob with only the three dashboard keys (no integration ids)', () =>
       const b = await createPaymentLink(mod.actor, { provider: 'paymob', orderId, phone: customer.phoneE164, amountHalalas: 1000, idempotencyKey: 'k-3keys-0002' })
       expect(b.status).toBe('failed')
       expect(b.errorCode).toContain('HTTP 400')
+      // Non-secret facts to diagnose: what was sent, key mode, server — never the key itself.
+      expect(b.errorCode).toContain('sent: [card]')
+      expect(b.errorCode).toContain('/test')
+      expect(b.errorCode).toContain('server: ksa.paymob.com')
+      expect(b.errorCode).not.toContain('sk_test_dummy')
       // Management enters the card integration id in Settings: it is used from the next link on.
       const { setSetting } = await import('@/server/services/settings')
       const owner = await makeStaff('owner')

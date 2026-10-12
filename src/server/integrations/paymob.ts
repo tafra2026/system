@@ -118,7 +118,14 @@ export async function createIntention(input: IntentionInput, timeoutMs = 15_000)
       body: JSON.stringify(body),
       signal: controller.signal,
     })
-    if (res.status < 200 || res.status >= 300) return { ok: false, code: 'rejected', detail: providerErrorDetail(await res.json().catch(() => null), res.status) }
+    if (res.status < 200 || res.status >= 300) {
+      // Non-secret facts that explain most refusals: what was sent, key mode and server.
+      const key = process.env.PAYMOB_SECRET_KEY?.trim() ?? ''
+      const mode = /_test_/.test(key) ? 'test' : /_live_/.test(key) ? 'live' : 'unknown'
+      const region = key.split('_')[0] || '?'
+      const facts = `sent: [${ids.join(', ')}] · keys: ${region}/${mode} · server: ${new URL(paymobBaseUrl()).host}`
+      return { ok: false, code: 'rejected', detail: `${providerErrorDetail(await res.json().catch(() => null), res.status)} (${facts})` }
+    }
     const data = (await res.json()) as { id?: unknown; client_secret?: unknown; intention_order_id?: unknown }
     if (typeof data.client_secret !== 'string' || data.id == null) return { ok: false, code: 'bad_response' }
     const checkoutUrl = `${paymobBaseUrl()}/unifiedcheckout/?publicKey=${encodeURIComponent(process.env.PAYMOB_PUBLIC_KEY?.trim() ?? '')}&clientSecret=${encodeURIComponent(data.client_secret)}`
