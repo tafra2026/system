@@ -10,7 +10,7 @@ import { authorize, type Actor } from '../authz/actor'
 import { writeAudit } from '../audit'
 import { getDb, type Executor } from '../db'
 import { customerAddresses, customers, orders, paymentLinkEvents, paymentLinks, payments, type PaymentLink } from '../db/schema'
-import { createIntention, paymobConfigured, paymobHmacSecret, paymobIntegrations, PAYMOB_METHODS, type PaymobMethod } from '../integrations/paymob'
+import { createIntention, paymobConfigured, paymobHmacSecret, paymobMethods, PAYMOB_METHODS, type PaymobMethod } from '../integrations/paymob'
 import { captureTabbyPayment, createTabbyCheckout, getTabbyPayment, tabbyConfigured } from '../integrations/tabby'
 import { authoriseTamaraOrder, captureTamaraOrder, createTamaraCheckout, getTamaraOrder, tamaraConfigured } from '../integrations/tamara'
 import { orderBalance, syncCommissions } from './commissions'
@@ -40,7 +40,7 @@ export interface ProviderState {
 
 export function providerStates(): ProviderState[] {
   return [
-    { provider: 'paymob', configured: paymobConfigured(), methods: [...paymobIntegrations().keys()], ...(paymobConfigured() ? {} : { missing: 'keys' as const }) },
+    { provider: 'paymob', configured: paymobConfigured(), methods: paymobMethods(), ...(paymobConfigured() ? {} : { missing: 'keys' as const }) },
     { provider: 'tabby', configured: tabbyConfigured(), methods: [], ...(tabbyConfigured() ? {} : { missing: 'keys' as const }) },
     { provider: 'tamara', configured: tamaraConfigured(), methods: [], ...(tamaraConfigured() ? {} : { missing: 'keys' as const }) },
   ]

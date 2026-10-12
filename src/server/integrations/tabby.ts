@@ -41,7 +41,7 @@ export function providerErrorDetail(data: unknown, status: number): string {
     else if (v && typeof v === 'object') parts.push(JSON.stringify(v))
   }
   const text = [`HTTP ${status}`, ...parts].join(' — ')
-  return text.replace(/\+?\d{7,}/g, '…').replace(/(sk|pk)_[A-Za-z0-9_]+/g, '…').slice(0, 200)
+  return text.replace(/\+?\d{7,}/g, '…').replace(/\b(?:(?:sau|egy|are|omn|pak)_)?(sk|pk)_[A-Za-z0-9_]+/g, '…').slice(0, 200)
 }
 
 /** Header value check for Tabby's webhook (constant-time). */

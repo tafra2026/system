@@ -1,4 +1,5 @@
 import 'server-only'
+import { providerErrorDetail } from './tabby'
 
 /**
  * Paymob KSA "Intention" checkout (unified checkout page). Our server never sees card data:
@@ -32,8 +33,18 @@ export function paymobIntegrations(): Map<PaymobMethod, number> {
   return out
 }
 
+/**
+ * Methods offered on links. With PAYMOB_INTEGRATIONS set: exactly those. Without it (only the three
+ * keys from the dashboard): the card integration, sent by name — Paymob resolves it on the account.
+ */
+export function paymobMethods(): PaymobMethod[] {
+  const ids = paymobIntegrations()
+  return ids.size ? [...ids.keys()] : ['card']
+}
+
+/** Links need the three dashboard keys: secret key, public key and HMAC secret. */
 export function paymobConfigured(): boolean {
-  return !!(process.env.PAYMOB_SECRET_KEY?.trim() && process.env.PAYMOB_PUBLIC_KEY?.trim() && process.env.PAYMOB_HMAC_SECRET?.trim() && paymobIntegrations().size > 0)
+  return !!(process.env.PAYMOB_SECRET_KEY?.trim() && process.env.PAYMOB_PUBLIC_KEY?.trim() && process.env.PAYMOB_HMAC_SECRET?.trim())
 }
 
 export function paymobHmacSecret(): string {
@@ -54,7 +65,7 @@ export interface IntentionInput {
 export type IntentionResult =
   | { ok: true; providerRef: string; checkoutUrl: string }
   /** `unknown`: the request may have reached Paymob (timeout) — check before creating again. */
-  | { ok: false; code: 'timeout_unknown' | 'rejected' | 'network' | 'bad_response' }
+  | { ok: false; code: 'timeout_unknown' | 'rejected' | 'network' | 'bad_response'; detail?: string }
 
 export type HttpTransport = (url: string, init: { method: string; headers: Record<string, string>; body: string; signal: AbortSignal }) => Promise<{ status: number; json: () => Promise<unknown> }>
 
@@ -68,7 +79,8 @@ export function useMockPaymobTransportForTests(mock: HttpTransport | null) {
 
 export async function createIntention(input: IntentionInput, timeoutMs = 15_000): Promise<IntentionResult> {
   const integrations = paymobIntegrations()
-  const ids = input.methods.map((m) => integrations.get(m)).filter((x): x is number => typeof x === 'number')
+  // Integration ids when configured, otherwise the method names (e.g. "card").
+  const ids: (number | string)[] = integrations.size ? input.methods.map((m) => integrations.get(m)).filter((x): x is number => typeof x === 'number') : input.methods
   const [first, ...rest] = (input.customerName ?? 'Customer').trim().split(/\s+/)
   const body = {
     amount: input.amountHalalas,
@@ -95,7 +107,7 @@ export async function createIntention(input: IntentionInput, timeoutMs = 15_000)
       body: JSON.stringify(body),
       signal: controller.signal,
     })
-    if (res.status < 200 || res.status >= 300) return { ok: false, code: 'rejected' }
+    if (res.status < 200 || res.status >= 300) return { ok: false, code: 'rejected', detail: providerErrorDetail(await res.json().catch(() => null), res.status) }
     const data = (await res.json()) as { id?: unknown; client_secret?: unknown; intention_order_id?: unknown }
     if (typeof data.client_secret !== 'string' || data.id == null) return { ok: false, code: 'bad_response' }
     const checkoutUrl = `${paymobBaseUrl()}/unifiedcheckout/?publicKey=${encodeURIComponent(process.env.PAYMOB_PUBLIC_KEY?.trim() ?? '')}&clientSecret=${encodeURIComponent(data.client_secret)}`

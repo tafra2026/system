@@ -80,6 +80,26 @@ async function setup() {
   return { owner, mod, s1, customer, orderId: res.id, total }
 }
 
+describe('Paymob with only the three dashboard keys (no integration ids)', () => {
+  it('creates the link with the card method by name, and shows Paymob\'s reason when it refuses', async () => {
+    const { mod, orderId, customer } = await setup()
+    const keep = process.env.PAYMOB_INTEGRATIONS
+    delete process.env.PAYMOB_INTEGRATIONS
+    try {
+      const calls = mockPaymob()
+      const a = await createPaymentLink(mod.actor, { provider: 'paymob', orderId, phone: customer.phoneE164, amountHalalas: 5000, idempotencyKey: 'k-3keys-0001' })
+      expect(a.status).toBe('open')
+      expect(calls[0]!.body.payment_methods).toEqual(['card'])
+      mockPaymob('reject')
+      const b = await createPaymentLink(mod.actor, { provider: 'paymob', orderId, phone: customer.phoneE164, amountHalalas: 1000, idempotencyKey: 'k-3keys-0002' })
+      expect(b.status).toBe('failed')
+      expect(b.errorCode).toContain('HTTP 400')
+    } finally {
+      process.env.PAYMOB_INTEGRATIONS = keep
+    }
+  })
+})
+
 describe('creating links', () => {
   it('defaults to what is due, rejects more, is idempotent, and sends the configured methods only', async () => {
     const { mod, s1, orderId, total, customer } = await setup()
